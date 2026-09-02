@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Loader2, Truck } from "lucide-react";
+import { Check, Clock, Copy, Loader2, Truck } from "lucide-react";
 
 
 import heroImg from "@/assets/hero.jpg";
@@ -23,17 +23,17 @@ export const Route = createFileRoute("/")({
   }),
   head: () => ({
     meta: [
-      { title: "Cantinho da Gula | Delivery 24h de xis, pizza, sushi e açaí" },
+      { title: "Cantinho da Gula | Delivery de xis, pizza, sushi e açaí" },
       {
         name: "description",
         content:
-          "Delivery aberto 24 horas, 7 dias por semana em Balneário Camboriú: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Frete grátis acima de R$ 119,90.",
+          "Delivery em Balneário Camboriú: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Frete grátis acima de R$ 119,90.",
       },
-      { property: "og:title", content: "Cantinho da Gula | Delivery 24h em Balneário Camboriú" },
+      { property: "og:title", content: "Cantinho da Gula | Delivery em Balneário Camboriú" },
       {
         property: "og:description",
         content:
-          "Aberto 24/7. Xis, pizzas, barcas de sushi, baurus, bolos e açaí feitos na hora, com adicionais e observações no pedido.",
+          "Xis, pizzas, barcas de sushi, baurus, bolos e açaí feitos na hora, com adicionais e observações no pedido.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -191,7 +191,7 @@ function Index() {
             </span>
             <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-              Aberto agora · 24 horas, todos os dias
+              Horário de atendimento
             </span>
           </button>
           <button
@@ -263,13 +263,13 @@ function Index() {
               <div className="absolute inset-0 flex items-end">
                 <div className="mx-auto w-full max-w-6xl px-4 pb-4 md:pb-6">
                   <span className="inline-block rounded-full border border-border bg-card/70 px-3 py-1 text-xs font-medium uppercase tracking-widest text-accent">
-                    Aberto 24/7 · Balneário Camboriú
+                    Horário de atendimento · Balneário Camboriú
                   </span>
                   <h1 className="mt-4 max-w-3xl text-3xl font-extrabold leading-tight tracking-tight md:text-6xl">
-                    Xis, pizza, barca de sushi e bolo na sua porta, a qualquer hora.
+                    Xis, pizza, barca de sushi e bolo entregues na sua porta.
                   </h1>
                   <p className="mt-3 max-w-xl text-sm text-muted-foreground md:text-lg">
-                    Cozinha aberta 24 horas por dia, 7 dias por semana.
+                    Confira nossos horários de funcionamento e faça seu pedido online.
                   </p>
                   <span className="mt-3 inline-flex items-center gap-2 rounded-full border border-accent/50 bg-accent/15 px-4 py-1.5 text-sm font-bold text-accent shadow-[0_0_24px_-6px_hsl(var(--accent)/0.6)] md:text-base">
                     <Truck className="h-4 w-4" />
@@ -394,17 +394,76 @@ function Index() {
             </section>
 
             <section className="mx-auto max-w-6xl px-4 pb-16">
-              <div className="grid gap-4 md:grid-cols-3">
-                {[
-                  { t: "Aberto 24/7", d: "Atendimento 24 horas por dia, todos os dias do ano." },
-                  { t: "Entrega rápida", d: "Média de 40 minutos em Balneário Camboriú e região." },
-                  { t: "Pagamento fácil", d: "Pix, cartão na entrega ou dinheiro. Sem taxa escondida." },
-                ].map((c) => (
-                  <div key={c.t} className="rounded-2xl border border-border bg-card p-6">
-                    <h3 className="font-semibold">{c.t}</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">{c.d}</p>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted/30 text-muted-foreground">
+                      <Clock className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Horário de atendimento
+                      </p>
+                      <h3 className="text-lg font-bold text-foreground">
+                        Horário específico
+                      </h3>
+
+                      <div className="mt-5 space-y-2.5">
+                        {[
+                          { day: "Domingo", hours: "13:00 - 04:00" },
+                          { day: "Segunda-Feira", hours: "13:00 - 00:00" },
+                          { day: "Terça-Feira", hours: "13:00 - 00:00" },
+                          { day: "Quarta-Feira", hours: "13:00 - 00:00" },
+                          { day: "Quinta-Feira", hours: "13:00 - 00:00" },
+                          { day: "Sexta-Feira", hours: "12:00 - 04:00" },
+                          { day: "Sábado", hours: "12:00 - 04:00" },
+                        ].map((item) => (
+                          <div
+                            key={item.day}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="font-medium text-foreground">
+                              {item.day}
+                            </span>
+                            <span className="tabular-nums text-muted-foreground">
+                              {item.hours}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                ))}
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  <div className="flex-1 rounded-2xl border border-border bg-card p-6 shadow-sm">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
+                        <Truck className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-foreground">Entrega rápida</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Média de 40 minutos em Balneário Camboriú e região. Entregamos seu pedido quentinho e com agilidade.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 rounded-2xl border border-border bg-card p-6 shadow-sm">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                        <Check className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-foreground">Pagamento fácil</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Pix com confirmação imediata, cartão na entrega ou dinheiro. Sem taxas escondidas.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
           </>
@@ -516,7 +575,7 @@ function Index() {
                           Não conseguimos concluir o pedido nº {pix.orderId.slice(0, 8)}.
                         </p>
                         <p className="mx-auto mt-3 max-w-sm rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm font-medium leading-snug text-destructive">
-                          Seu pagamento será extornado em até 24 horas.
+                          Seu pagamento será estornado automaticamente em até 1 dia útil.
                         </p>
 
                         <button
@@ -723,7 +782,7 @@ function Index() {
 
       <footer className="border-t border-border">
         <div className="mx-auto max-w-6xl px-4 py-8 text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Cantinho da Gula · Balneário Camboriú / SC · Aberto 24 horas
+          © {new Date().getFullYear()} Cantinho da Gula · Balneário Camboriú / SC
         </div>
       </footer>
 
