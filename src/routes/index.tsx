@@ -5,6 +5,7 @@ import { Check, Clock, Copy, Loader2, Truck } from "lucide-react";
 
 
 import heroImg from "@/assets/hero.jpg";
+import logoImg from "@/assets/logo.png";
 import {
   categories,
   formatBRL,
@@ -184,15 +185,24 @@ function Index() {
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             aria-label="Cantinho da Gula, voltar ao topo do cardápio"
-            className="text-left"
+            className="flex items-center gap-2.5 text-left"
           >
-            <span className="block text-lg font-extrabold leading-none tracking-tight">
-              Cantinho <span className="text-primary">da Gula</span>
-            </span>
-            <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-              Horário de atendimento
-            </span>
+            <img
+              src={logoImg}
+              alt="Logo Cantinho da Gula"
+              width={40}
+              height={40}
+              className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-primary/40"
+            />
+            <div>
+              <span className="block text-lg font-extrabold leading-none tracking-tight">
+                Cantinho <span className="text-primary">da Gula</span>
+              </span>
+              <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+                Horário de atendimento
+              </span>
+            </div>
           </button>
           <button
             type="button"
