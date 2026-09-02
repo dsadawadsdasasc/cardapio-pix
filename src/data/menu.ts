@@ -7,7 +7,7 @@ import boloImg from "@/assets/cat-bolo.jpg";
 import comboImg from "@/assets/cat-combo.jpg";
 
 import imgComboCasal from "@/assets/prod/combo-casal.jpg";
-import imgComboPizzaDupla from "@/assets/prod/combo-pizza-dupla.jpg";
+import imgComboPizzaDupla from "@/assets/prod/combo-destaque-pizza.jpg";
 import imgComboBurgerFesta from "@/assets/prod/combo-burger-festa.jpg";
 import imgComboSushi from "@/assets/prod/combo-sushi.jpg";
 import imgComboAcaiFamilia from "@/assets/prod/combo-acai-familia.jpg";
@@ -114,10 +114,10 @@ export const menu: MenuItem[] = [
   },
   {
     id: "combo-pizza-dupla",
-    name: "Combo Pizza Dupla",
+    name: "Combo Pizza Dupla + Fritas + Coca 2L",
     description:
-      "2 pizzas grandes à sua escolha + 1 porção de fritas + Coca-Cola 2L. Serve 4 pessoas.",
-    price: 109.9,
+      "2 pizzas grandes à sua escolha + 1 porção de fritas crocantes + Coca-Cola 2L. Serve 4 pessoas.",
+    price: 99.9,
     category: "combos",
     image: imgComboPizzaDupla,
   },

@@ -280,6 +280,67 @@ function Index() {
               </div>
             </section>
 
+            <section className="mx-auto max-w-6xl px-4 pt-6">
+              <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card to-card p-6 shadow-xl md:p-8">
+                <div className="grid gap-6 md:grid-cols-12 md:items-center">
+                  <div className="md:col-span-7">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1 text-xs font-black uppercase tracking-wider text-primary-foreground shadow-sm">
+                      🔥 Oferta Imperdível · Combo em Destaque
+                    </span>
+                    <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl md:text-4xl">
+                      Combo 2 Pizzas Grandes + Fritas + Coca 2L
+                    </h2>
+                    <p className="mt-2 text-sm text-muted-foreground md:text-base leading-relaxed">
+                      2 pizzas grandes artesanais à sua escolha + 1 porção de batatas fritas crocantes + 1 Coca-Cola 2L trincando de gelada.
+                    </p>
+
+                    <div className="mt-4 flex items-baseline gap-3">
+                      <span className="text-3xl font-black text-accent md:text-4xl">
+                        {formatBRL(99.9)}
+                      </span>
+                      <span className="text-sm font-semibold text-muted-foreground line-through">
+                        {formatBRL(129.9)}
+                      </span>
+                      <span className="rounded-md bg-accent/15 px-2 py-0.5 text-xs font-bold uppercase text-accent">
+                        Economize R$ 30,00
+                      </span>
+                    </div>
+
+                    <div className="mt-5">
+                      <Link
+                        to="/produto/$id"
+                        params={{ id: "combo-pizza-dupla" }}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground transition-transform hover:scale-105 shadow-md active:scale-95"
+                      >
+                        Peça este combo por {formatBRL(99.9)} →
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center md:col-span-5">
+                    <Link
+                      to="/produto/$id"
+                      params={{ id: "combo-pizza-dupla" }}
+                      className="group relative overflow-hidden rounded-2xl border border-border shadow-lg transition-transform hover:scale-[1.02]"
+                    >
+                      {menu.find((m) => m.id === "combo-pizza-dupla")?.image && (
+                        <img
+                          src={menu.find((m) => m.id === "combo-pizza-dupla")?.image}
+                          alt="Combo 2 Pizzas Grandes + Fritas + Coca 2L"
+                          width={600}
+                          height={700}
+                          className="h-64 w-full object-cover sm:h-72"
+                        />
+                      )}
+                      <span className="absolute top-3 right-3 rounded-full bg-primary px-3 py-1 text-xs font-extrabold uppercase text-primary-foreground shadow">
+                        Destaque
+                      </span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <section className="mx-auto max-w-6xl px-4 pb-8 pt-4 md:pt-6">
               <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Cardápio</h2>
               <p className="mt-1 text-sm text-muted-foreground">
