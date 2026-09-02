@@ -280,81 +280,39 @@ function Index() {
               </div>
             </section>
 
-            <section className="mx-auto max-w-6xl px-4 pt-6">
-              <div className="relative overflow-hidden rounded-3xl border-2 border-primary/60 bg-gradient-to-br from-primary/20 via-card to-accent/10 p-6 shadow-[0_0_40px_-10px_hsl(var(--primary)/0.4)] md:p-8">
-                {/* Efeito de brilho de fundo decorativo */}
-                <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/20 blur-3xl" />
-                <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
+            <section className="mx-auto max-w-6xl px-4 pt-4 md:pt-6">
+              <Link
+                to="/produto/$id"
+                params={{ id: "combo-pizza-dupla" }}
+                className="group relative block overflow-hidden rounded-3xl border-2 border-primary/60 bg-card shadow-[0_0_35px_-8px_hsl(var(--primary)/0.4)] transition-all duration-300 hover:border-primary active:scale-[0.99]"
+              >
+                <div className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-background/90 px-3.5 py-1 text-xs font-black uppercase tracking-wider text-primary shadow-lg backdrop-blur">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+                  </span>
+                  🔥 Destaque do Dia
+                </div>
 
-                <div className="relative z-10 grid gap-6 md:grid-cols-12 md:items-center">
-                  <div className="md:col-span-7">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-primary shadow-sm backdrop-blur">
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent" />
-                      </span>
-                      🔥 OFERTA MAIS PEDIDA DA SEMANA
-                    </div>
+                <div className="flex flex-col items-center">
+                  {menu.find((m) => m.id === "combo-pizza-dupla")?.image && (
+                    <img
+                      src={menu.find((m) => m.id === "combo-pizza-dupla")?.image}
+                      alt="Combo Pizza Dupla por apenas R$ 99,90"
+                      width={800}
+                      height={1200}
+                      className="w-full max-w-lg rounded-t-3xl object-contain transition-transform duration-500 group-hover:scale-[1.01]"
+                    />
+                  )}
 
-                    <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl md:text-5xl">
-                      Combo 2 Pizzas Grandes + Fritas + Coca 2L
-                    </h2>
-                    <p className="mt-2 text-sm text-muted-foreground md:text-base leading-relaxed">
-                      2 pizzas grandes artesanais à sua escolha + 1 porção de batatas fritas crocantes + 1 Coca-Cola 2L bem gelada.
-                    </p>
-
-                    <div className="mt-5 inline-flex flex-wrap items-center gap-3 rounded-2xl border border-primary/30 bg-card/80 p-3.5 backdrop-blur shadow-inner">
-                      <div>
-                        <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Preço especial
-                        </span>
-                        <span className="text-3xl font-black text-accent drop-shadow-sm md:text-4xl">
-                          {formatBRL(99.9)}
-                        </span>
-                      </div>
-                      <div className="flex flex-col border-l border-border pl-3">
-                        <span className="text-xs font-semibold text-muted-foreground line-through">
-                          de {formatBRL(129.9)}
-                        </span>
-                        <span className="mt-0.5 inline-block rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-black uppercase text-accent-foreground shadow-sm">
-                          Economize R$ 30,00
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-6">
-                      <Link
-                        to="/produto/$id"
-                        params={{ id: "combo-pizza-dupla" }}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-extrabold text-primary-foreground transition-all hover:scale-105 hover:shadow-[0_0_25px_-5px_hsl(var(--primary)/0.7)] shadow-lg active:scale-95"
-                      >
-                        ⚡ QUERO ESSE COMBO AGORA →
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-center md:col-span-5">
-                    <Link
-                      to="/produto/$id"
-                      params={{ id: "combo-pizza-dupla" }}
-                      className="group relative overflow-hidden rounded-2xl border-2 border-primary/50 shadow-2xl transition-all duration-300 hover:border-primary hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.6)]"
-                    >
-                      {menu.find((m) => m.id === "combo-pizza-dupla")?.image && (
-                        <img
-                          src={menu.find((m) => m.id === "combo-pizza-dupla")?.image}
-                          alt="Combo 2 Pizzas Grandes + Fritas + Coca 2L"
-                          width={600}
-                          height={700}
-                          className="h-72 w-full object-cover transition-transform duration-500 group-hover:scale-105 md:h-80"
-                        />
-                      )}
-                      <span className="absolute top-3 right-3 rounded-full bg-gradient-to-r from-primary to-accent px-3.5 py-1 text-xs font-black uppercase tracking-wider text-primary-foreground shadow-md">
-                        SUPER DESTAQUE
-                      </span>
-                    </Link>
+                  <div className="w-full bg-gradient-to-r from-primary via-primary/95 to-accent p-3.5 text-center text-primary-foreground shadow-inner">
+                    <span className="flex items-center justify-center gap-2 text-base font-black tracking-wide sm:text-lg">
+                      <span>⚡ PEÇA AGORA POR APENAS {formatBRL(99.9)}</span>
+                      <span className="rounded-full bg-background/20 px-2 py-0.5 text-xs">→</span>
+                    </span>
                   </div>
                 </div>
-              </div>
+              </Link>
             </section>
 
             <section className="mx-auto max-w-6xl px-4 pb-8 pt-4 md:pt-6">
