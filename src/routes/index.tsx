@@ -281,38 +281,54 @@ function Index() {
             </section>
 
             <section className="mx-auto max-w-6xl px-4 pt-6">
-              <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-gradient-to-br from-primary/15 via-card to-card p-6 shadow-xl md:p-8">
-                <div className="grid gap-6 md:grid-cols-12 md:items-center">
+              <div className="relative overflow-hidden rounded-3xl border-2 border-primary/60 bg-gradient-to-br from-primary/20 via-card to-accent/10 p-6 shadow-[0_0_40px_-10px_hsl(var(--primary)/0.4)] md:p-8">
+                {/* Efeito de brilho de fundo decorativo */}
+                <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/20 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
+
+                <div className="relative z-10 grid gap-6 md:grid-cols-12 md:items-center">
                   <div className="md:col-span-7">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1 text-xs font-black uppercase tracking-wider text-primary-foreground shadow-sm">
-                      🔥 Oferta Imperdível · Combo em Destaque
-                    </span>
-                    <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl md:text-4xl">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-4 py-1.5 text-xs font-black uppercase tracking-wider text-primary shadow-sm backdrop-blur">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent" />
+                      </span>
+                      🔥 OFERTA MAIS PEDIDA DA SEMANA
+                    </div>
+
+                    <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl md:text-5xl">
                       Combo 2 Pizzas Grandes + Fritas + Coca 2L
                     </h2>
                     <p className="mt-2 text-sm text-muted-foreground md:text-base leading-relaxed">
-                      2 pizzas grandes artesanais à sua escolha + 1 porção de batatas fritas crocantes + 1 Coca-Cola 2L trincando de gelada.
+                      2 pizzas grandes artesanais à sua escolha + 1 porção de batatas fritas crocantes + 1 Coca-Cola 2L bem gelada.
                     </p>
 
-                    <div className="mt-4 flex items-baseline gap-3">
-                      <span className="text-3xl font-black text-accent md:text-4xl">
-                        {formatBRL(99.9)}
-                      </span>
-                      <span className="text-sm font-semibold text-muted-foreground line-through">
-                        {formatBRL(129.9)}
-                      </span>
-                      <span className="rounded-md bg-accent/15 px-2 py-0.5 text-xs font-bold uppercase text-accent">
-                        Economize R$ 30,00
-                      </span>
+                    <div className="mt-5 inline-flex flex-wrap items-center gap-3 rounded-2xl border border-primary/30 bg-card/80 p-3.5 backdrop-blur shadow-inner">
+                      <div>
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Preço especial
+                        </span>
+                        <span className="text-3xl font-black text-accent drop-shadow-sm md:text-4xl">
+                          {formatBRL(99.9)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col border-l border-border pl-3">
+                        <span className="text-xs font-semibold text-muted-foreground line-through">
+                          de {formatBRL(129.9)}
+                        </span>
+                        <span className="mt-0.5 inline-block rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-black uppercase text-accent-foreground shadow-sm">
+                          Economize R$ 30,00
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="mt-5">
+                    <div className="mt-6">
                       <Link
                         to="/produto/$id"
                         params={{ id: "combo-pizza-dupla" }}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground transition-transform hover:scale-105 shadow-md active:scale-95"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-extrabold text-primary-foreground transition-all hover:scale-105 hover:shadow-[0_0_25px_-5px_hsl(var(--primary)/0.7)] shadow-lg active:scale-95"
                       >
-                        Peça este combo por {formatBRL(99.9)} →
+                        ⚡ QUERO ESSE COMBO AGORA →
                       </Link>
                     </div>
                   </div>
@@ -321,7 +337,7 @@ function Index() {
                     <Link
                       to="/produto/$id"
                       params={{ id: "combo-pizza-dupla" }}
-                      className="group relative overflow-hidden rounded-2xl border border-border shadow-lg transition-transform hover:scale-[1.02]"
+                      className="group relative overflow-hidden rounded-2xl border-2 border-primary/50 shadow-2xl transition-all duration-300 hover:border-primary hover:shadow-[0_0_30px_-5px_hsl(var(--primary)/0.6)]"
                     >
                       {menu.find((m) => m.id === "combo-pizza-dupla")?.image && (
                         <img
@@ -329,11 +345,11 @@ function Index() {
                           alt="Combo 2 Pizzas Grandes + Fritas + Coca 2L"
                           width={600}
                           height={700}
-                          className="h-64 w-full object-cover sm:h-72"
+                          className="h-72 w-full object-cover transition-transform duration-500 group-hover:scale-105 md:h-80"
                         />
                       )}
-                      <span className="absolute top-3 right-3 rounded-full bg-primary px-3 py-1 text-xs font-extrabold uppercase text-primary-foreground shadow">
-                        Destaque
+                      <span className="absolute top-3 right-3 rounded-full bg-gradient-to-r from-primary to-accent px-3.5 py-1 text-xs font-black uppercase tracking-wider text-primary-foreground shadow-md">
+                        SUPER DESTAQUE
                       </span>
                     </Link>
                   </div>
