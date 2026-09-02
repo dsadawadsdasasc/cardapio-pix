@@ -1,0 +1,188 @@
+import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
+import { z } from "zod";
+
+import { FREE_SHIPPING_FROM, getAddons, menu } from "@/data/menu";
+
+const DELIVERY_FEE = 40;
+const PROJECT_ID = "f66dd207-fb73-4981-a30d-0072f3e43864";
+
+const checkoutSchema = z.object({
+  customerName: z.string().trim().min(2).max(80),
+  customerPhone: z.string().trim().min(8).max(30),
+  address: z.string().trim().min(6).max(200),
+  notes: z.string().trim().max(300).optional().default(""),
+  items: z
+    .array(
+      z.object({
+        itemId: z.string().min(1).max(60),
+        qty: z.number().int().min(1).max(30),
+        addonIds: z.array(z.string().min(1).max(60)).max(20).default([]),
+        notes: z.string().trim().max(200).default(""),
+      }),
+    )
+    .min(1)
+    .max(40),
+});
+
+type CheckoutInput = z.infer<typeof checkoutSchema>;
+
+const toCents = (v: number) => Math.round(v * 100);
+
+function priceOrder(items: CheckoutInput["items"]) {
+  const lines = items.map((line) => {
+    const item = menu.find((m) => m.id === line.itemId);
+    if (!item) throw new Error("Item indisponível no cardápio.");
+    const addons = getAddons(item.category).filter((a) => line.addonIds.includes(a.id));
+    const unit = item.price + addons.reduce((s, a) => s + a.price, 0);
+    return {
+      item_id: item.id,
+      item_name: item.name,
+      qty: line.qty,
+      unit_price_cents: toCents(unit),
+      addons: addons.map((a) => ({ id: a.id, name: a.name, price: a.price })),
+      notes: line.notes || null,
+    };
+  });
+
+  const subtotalCents = lines.reduce((s, l) => s + l.unit_price_cents * l.qty, 0);
+  const shippingCents =
+    subtotalCents >= toCents(FREE_SHIPPING_FROM) ? 0 : toCents(DELIVERY_FEE);
+  return { lines, subtotalCents, shippingCents, totalCents: subtotalCents + shippingCents };
+}
+
+function callbackUrl() {
+  const fallback = `https://project--${PROJECT_ID}-dev.lovable.app/api/public/onipay`;
+  try {
+    const url = new URL(getRequest().url);
+    if (url.protocol === "https:" && !url.hostname.includes("localhost")) {
+      return `${url.origin}/api/public/onipay`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return fallback;
+}
+
+export const createPixOrder = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => checkoutSchema.parse(data))
+  .handler(async ({ data }) => {
+    const token = process.env["ONIPAY_TOKEN_API"];
+    if (!token) return { ok: false as const, error: "Pagamento não configurado." };
+
+    const { lines, subtotalCents, shippingCents, totalCents } = priceOrder(data.items);
+    const amount = Number((totalCents / 100).toFixed(2));
+
+    if (amount < 10 || amount > 1000) {
+      return {
+        ok: false as const,
+        error:
+          "O Pix online aceita pedidos de R$ 10,00 até R$ 1.000,00. Para outros valores finalize pelo WhatsApp.",
+      };
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from("orders")
+      .insert({
+        customer_name: data.customerName,
+        customer_phone: data.customerPhone,
+        address: data.address,
+        notes: data.notes || null,
+        subtotal_cents: subtotalCents,
+        shipping_cents: shippingCents,
+        total_cents: totalCents,
+        payment_provider: "onipay",
+      })
+      .select("id")
+      .single();
+
+    if (orderError || !order) {
+      console.error("order insert failed", orderError);
+      return { ok: false as const, error: "Não foi possível registrar o pedido." };
+    }
+
+    const { error: itemsError } = await supabaseAdmin
+      .from("order_items")
+      .insert(lines.map((l) => ({ ...l, order_id: order.id })));
+    if (itemsError) console.error("order items insert failed", itemsError);
+
+    let payload: {
+      data?: {
+        id?: string;
+        pix?: { copyPaste?: string; qrCodeBase64?: string };
+        status?: string;
+      };
+      error?: { message?: string };
+    } = {};
+
+    try {
+      const res = await fetch("https://onipaybot.com.br/api/v1/deposits/", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": `pedido-${order.id}`,
+        },
+        body: JSON.stringify({
+          amount,
+          callbackUrl: callbackUrl(),
+          externalId: order.id,
+        }),
+      });
+      payload = (await res.json().catch(() => ({}))) as typeof payload;
+      if (!res.ok) {
+        console.error("onipay error", res.status, payload?.error?.message);
+        return {
+          ok: false as const,
+          error:
+            payload?.error?.message ??
+            "O provedor de pagamento não conseguiu gerar o Pix agora. Tente novamente.",
+        };
+      }
+    } catch (err) {
+      console.error("onipay request failed", err);
+      return { ok: false as const, error: "Falha ao falar com o provedor de pagamento." };
+    }
+
+    const deposit = payload.data;
+    const copyPaste = deposit?.pix?.copyPaste ?? "";
+    if (!copyPaste) {
+      return { ok: false as const, error: "O provedor não retornou o código Pix." };
+    }
+
+    await supabaseAdmin
+      .from("orders")
+      .update({
+        payment_reference: deposit?.id ?? null,
+        pix_copy_paste: copyPaste,
+        pix_qr_base64: deposit?.pix?.qrCodeBase64 ?? null,
+        payment_status: deposit?.status === "PAID" ? "paid" : "unpaid",
+      })
+      .eq("id", order.id);
+
+    return {
+      ok: true as const,
+      orderId: order.id,
+      amount,
+      copyPaste,
+      qrCodeBase64: deposit?.pix?.qrCodeBase64 ?? "",
+      paid: deposit?.status === "PAID",
+    };
+  });
+
+export const getOrderPaymentStatus = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ orderId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: order } = await supabaseAdmin
+      .from("orders")
+      .select("payment_status, total_cents")
+      .eq("id", data.orderId)
+      .maybeSingle();
+    return {
+      paid: order?.payment_status === "paid",
+      totalCents: order?.total_cents ?? 0,
+    };
+  });
