@@ -433,7 +433,7 @@ function Index() {
                   {menu.find((m) => m.id === "combo-pizza-dupla")?.image && (
                     <img
                       src={menu.find((m) => m.id === "combo-pizza-dupla")?.image}
-                      alt="Combo Pizza Dupla por apenas R$ 99,90"
+                      alt={`Combo Pizza Dupla por apenas ${formatBRL(menu.find((m) => m.id === "combo-pizza-dupla")?.price || 74.9)}`}
                       width={800}
                       height={1200}
                       className="w-full max-w-lg rounded-t-3xl object-contain transition-transform duration-500 group-hover:scale-[1.01]"
@@ -442,7 +442,7 @@ function Index() {
 
                   <div className="w-full bg-gradient-to-r from-primary via-primary/95 to-accent p-3.5 text-center text-primary-foreground shadow-inner">
                     <span className="flex items-center justify-center gap-2 text-base font-black tracking-wide sm:text-lg">
-                      <span>⚡ PEÇA AGORA POR APENAS {formatBRL(99.9)}</span>
+                      <span>⚡ PEÇA AGORA POR APENAS {formatBRL(menu.find((m) => m.id === "combo-pizza-dupla")?.price || 74.9)}</span>
                       <span className="rounded-full bg-background/20 px-2 py-0.5 text-xs">→</span>
                     </span>
                   </div>
