@@ -52,7 +52,7 @@ function priceOrder(items: CheckoutInput["items"]) {
 }
 
 function callbackUrl() {
-  const fallback = `https://project--${PROJECT_ID}-dev.lovable.app/api/public/onipay`;
+  const fallback = `https://dsadawadsdasasc-cardapio-pix.pages.dev/api/public/onipay`;
   try {
     const url = new URL(getRequest().url);
     if (url.protocol === "https:" && !url.hostname.includes("localhost")) {
