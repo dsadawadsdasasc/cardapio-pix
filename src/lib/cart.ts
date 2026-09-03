@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { trackPixelEvent } from "@/lib/pixel";
 
 export type CartLine = {
   lineId: string;
@@ -63,6 +64,7 @@ export const cart = {
     hydrate();
     lines = [...lines, { ...line, lineId: `${line.itemId}-${Date.now()}` }];
     emit();
+    trackPixelEvent("AddToCart", { content_ids: [line.itemId], quantity: line.qty });
   },
   update(lineId: string, patch: Partial<Omit<CartLine, "lineId">>) {
     hydrate();

@@ -16,6 +16,7 @@ import {
 } from "@/data/menu";
 import { cart, useCart } from "@/lib/cart";
 import { registerOrder } from "@/lib/checkout.functions";
+import { trackPixelEvent } from "@/lib/pixel";
 
 
 export const Route = createFileRoute("/")({
@@ -725,6 +726,8 @@ function Index() {
                           localStorage.setItem("cantinho_orders", JSON.stringify([localOrder, ...list].slice(0, 50)));
                         } catch {}
                       }
+                      trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
+                      trackPixelEvent("Lead", { value: subtotal, currency: "BRL" });
                     }}
                     className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white py-4 px-6 text-base md:text-lg font-black tracking-wide shadow-xl shadow-[#25D366]/30 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
                   >
