@@ -117,7 +117,7 @@ export const menu: MenuItem[] = [
     name: "Combo Pizza Dupla + Fritas + Coca 2L",
     description:
       "2 pizzas grandes à sua escolha + 1 porção de fritas crocantes + Coca-Cola 2L. Serve 4 pessoas.",
-    price: 74.9,
+    price: 99.9,
     category: "combos",
     image: imgComboPizzaDupla,
   },
