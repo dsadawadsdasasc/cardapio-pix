@@ -1351,7 +1351,7 @@ function Index() {
         </button>
       )}
 
-      {/* Botão flutuante do WhatsApp no canto inferior direito */}
+      {/* Botão flutuante do WhatsApp no canto inferior direito - v1.0.4 */}
       <a
         href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre o cardápio.")}`}
         target="_blank"
