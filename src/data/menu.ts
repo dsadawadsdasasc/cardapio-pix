@@ -108,7 +108,7 @@ export const menu: MenuItem[] = [
     name: "Combo Casal",
     description:
       "2 Xis à sua escolha + 2 porções de fritas + 2 refrigerantes 600ml. Serve 2 pessoas.",
-    price: 64.9,
+    price: 59.9,
     category: "combos",
     image: imgComboCasal,
   },
@@ -135,7 +135,7 @@ export const menu: MenuItem[] = [
     name: "Combo Burger Festa",
     description:
       "4 hambúrgueres à sua escolha + 4 porções de fritas + onion rings + 2 refrigerantes 2L. Serve 4 pessoas.",
-    price: 114.9,
+    price: 109.9,
     category: "combos",
     image: imgComboBurgerFesta,
   },
@@ -144,7 +144,7 @@ export const menu: MenuItem[] = [
     name: "Combo da Galera",
     description:
       "4 Xis à sua escolha + 4 porções de fritas + 2 refrigerantes 2L + 1 açaí de 1L. Serve até 6 pessoas.",
-    price: 94.9,
+    price: 89.9,
     category: "combos",
     image: imgComboGalera,
   },
