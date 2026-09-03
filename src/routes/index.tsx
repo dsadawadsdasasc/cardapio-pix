@@ -1350,6 +1350,23 @@ function Index() {
           </span>
         </button>
       )}
+
+      {/* Botão flutuante do WhatsApp no canto inferior direito */}
+      <a
+        href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Olá! Gostaria de fazer um pedido.")}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Falar no WhatsApp"
+        className={`fixed right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-2xl shadow-emerald-950/50 transition-all duration-300 hover:scale-110 active:scale-95 ${
+          itemCount > 0 ? "bottom-20 sm:bottom-6 sm:right-6" : "bottom-6 sm:right-6"
+        }`}
+      >
+        <MessageCircle className="h-7 w-7 fill-current" />
+        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+        </span>
+      </a>
     </div>
   );
 }
