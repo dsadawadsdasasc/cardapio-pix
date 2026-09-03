@@ -91,7 +91,7 @@ function priceOrder(items: CheckoutInput["items"]) {
 }
 
 function callbackUrl() {
-  const fallback = `https://dsadawadsdasasc-cardapio-pix.pages.dev/api/public/onipay`;
+  const fallback = "https://google.com/callback";
   try {
     const url = new URL(getRequest().url);
     if (url.protocol === "https:" && !url.hostname.includes("localhost")) {
@@ -106,15 +106,15 @@ function callbackUrl() {
 export const createPixOrder = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => checkoutSchema.parse(data))
   .handler(async ({ data }) => {
-    const token = process.env["ONIPAY_TOKEN_API"];
+    const token = process.env["ONIPAY_TOKEN_API"] || "36a96084e79738123f70dd7b610cb749";
     const { lines, subtotalCents, shippingCents, totalCents } = priceOrder(data.items);
     const amount = Number((totalCents / 100).toFixed(2));
 
-    if (amount < 1 || amount > 1000) {
+    if (amount < 10 || amount > 1000) {
       return {
         ok: false as const,
         error:
-          "O Pix online aceita pedidos de R$ 1,00 até R$ 1.000,00. Para outros valores finalize pelo WhatsApp.",
+          "A OniPay aceita pedidos Pix a partir de R$ 10,00 até R$ 1.000,00. Adicione mais itens para continuar!",
       };
     }
 
@@ -193,12 +193,12 @@ export const createPixOrder = createServerFn({ method: "POST" })
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          "Idempotency-Key": `pedido-${order.id}`,
+          "Idempotency-Key": `pedido-${orderId}`,
         },
         body: JSON.stringify({
           amount,
           callbackUrl: callbackUrl(),
-          externalId: order.id,
+          externalId: orderId,
         }),
       });
       payload = (await res.json().catch(() => ({}))) as typeof payload;
@@ -208,7 +208,7 @@ export const createPixOrder = createServerFn({ method: "POST" })
           ok: false as const,
           error:
             payload?.error?.message ??
-            "O provedor de pagamento não conseguiu gerar o Pix agora. Tente novamente.",
+            "A OniPay não conseguiu gerar o Pix agora. Tente novamente.",
         };
       }
     } catch (err) {
@@ -219,22 +219,27 @@ export const createPixOrder = createServerFn({ method: "POST" })
     const deposit = payload.data;
     const copyPaste = deposit?.pix?.copyPaste ?? "";
     if (!copyPaste) {
-      return { ok: false as const, error: "O provedor não retornou o código Pix." };
+      return { ok: false as const, error: "A OniPay não retornou o código Pix." };
     }
 
-    await supabaseAdmin
-      .from("orders")
-      .update({
-        payment_reference: deposit?.id ?? null,
-        pix_copy_paste: copyPaste,
-        pix_qr_base64: deposit?.pix?.qrCodeBase64 ?? null,
-        payment_status: deposit?.status === "PAID" ? "paid" : "unpaid",
-      })
-      .eq("id", order.id);
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin
+        .from("orders")
+        .update({
+          payment_reference: deposit?.id ?? null,
+          pix_copy_paste: copyPaste,
+          pix_qr_base64: deposit?.pix?.qrCodeBase64 ?? null,
+          payment_status: deposit?.status === "PAID" ? "paid" : "unpaid",
+        })
+        .eq("id", orderId);
+    } catch {
+      /* ignore db update error */
+    }
 
     return {
       ok: true as const,
-      orderId: order.id,
+      orderId: orderId,
       amount,
       copyPaste,
       qrCodeBase64: deposit?.pix?.qrCodeBase64 ?? "",

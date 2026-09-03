@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/public/onipay")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const token = process.env["ONIPAY_TOKEN_API"];
+        const token = process.env["ONIPAY_TOKEN_API"] || "36a96084e79738123f70dd7b610cb749";
         if (!token) return new Response("not configured", { status: 500 });
 
         const rawBody = await request.text();
