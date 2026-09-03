@@ -291,8 +291,8 @@ function Index() {
             [
               { id: "cardapio", label: "Cardápio" },
               { id: "pedido", label: `Meu pedido${itemCount ? ` (${itemCount})` : ""}` },
-              { id: "vendas", label: "Painel Vendas 🔒" },
-            ] as const
+              ...(adminAuth ? [{ id: "vendas" as const, label: "Painel Vendas 🔒" }] : []),
+            ]
           ).map((t) => (
             <button
               key={t.id}
@@ -1156,8 +1156,16 @@ function Index() {
       </main>
 
       <footer className="border-t border-border">
-        <div className="mx-auto max-w-6xl px-4 py-8 text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Cantinho da Gula · Balneário Camboriú / SC
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-8 text-sm text-muted-foreground">
+          <span>© {new Date().getFullYear()} Cantinho da Gula · Balneário Camboriú / SC</span>
+          <button
+            type="button"
+            onClick={() => setTab("vendas")}
+            className="text-xs opacity-30 hover:opacity-100 transition-opacity"
+            title="Área Administrativa"
+          >
+            🔒 ADM
+          </button>
         </div>
       </footer>
 
