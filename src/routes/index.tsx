@@ -720,6 +720,15 @@ function Index() {
                           Escaneie o QR Code ou use o copia e cola. A confirmação é
                           automática.
                         </p>
+
+                        <div className="mt-3.5 mb-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-left text-xs leading-relaxed text-amber-200">
+                          <p className="font-semibold text-amber-400 flex items-center gap-1.5 mb-1">
+                            ⚠️ Aviso importante:
+                          </p>
+                          <p>
+                            Um cliente de má fé pediu reembolso sem razão, logo é possível que seja mostrada alguma mensagem de suspeita ao enviar o pix. Obrigado pela compreensão e bom lanche!
+                          </p>
+                        </div>
                         {pix.qrCodeBase64 && (
                           <img
                             src={`data:image/png;base64,${pix.qrCodeBase64}`}
