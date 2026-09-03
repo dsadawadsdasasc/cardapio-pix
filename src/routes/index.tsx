@@ -1161,11 +1161,9 @@ function Index() {
           <button
             type="button"
             onClick={() => setTab("vendas")}
-            className="text-xs opacity-30 hover:opacity-100 transition-opacity"
-            title="Área Administrativa"
-          >
-            🔒 ADM
-          </button>
+            className="h-1.5 w-1.5 rounded-full bg-accent/40 transition-colors hover:bg-accent"
+            aria-label="Acesso administrativo"
+          />
         </div>
       </footer>
 
