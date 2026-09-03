@@ -71,11 +71,11 @@ export const createPixOrder = createServerFn({ method: "POST" })
     const { lines, subtotalCents, shippingCents, totalCents } = priceOrder(data.items);
     const amount = Number((totalCents / 100).toFixed(2));
 
-    if (amount < 10 || amount > 1000) {
+    if (amount < 1 || amount > 1000) {
       return {
         ok: false as const,
         error:
-          "O Pix online aceita pedidos de R$ 10,00 até R$ 1.000,00. Para outros valores finalize pelo WhatsApp.",
+          "O Pix online aceita pedidos de R$ 1,00 até R$ 1.000,00. Para outros valores finalize pelo WhatsApp.",
       };
     }
 
