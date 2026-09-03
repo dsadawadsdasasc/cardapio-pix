@@ -671,16 +671,6 @@ function Index() {
                       />
                     </label>
                     <label className="block text-sm">
-                      <span className="text-muted-foreground font-medium">WhatsApp / Celular</span>
-                      <input
-                        inputMode="tel"
-                        value={form.phone}
-                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                        className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-[#25D366]"
-                        placeholder="(48) 90000-0000"
-                      />
-                    </label>
-                    <label className="block text-sm">
                       <span className="text-muted-foreground font-medium">Endereço de Entrega</span>
                       <input
                         value={form.address}
