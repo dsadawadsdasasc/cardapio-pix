@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { FREE_SHIPPING_FROM, getAddons, menu } from "@/data/menu";
 
-const DELIVERY_FEE = 40;
+const DELIVERY_FEE = 0;
 const PROJECT_ID = "f66dd207-fb73-4981-a30d-0072f3e43864";
 
 const checkoutSchema = z.object({

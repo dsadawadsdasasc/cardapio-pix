@@ -82,7 +82,7 @@ export type MenuItem = {
 };
 
 /** Pedidos a partir deste valor ganham frete grátis. */
-export const FREE_SHIPPING_FROM = 119.9;
+export const FREE_SHIPPING_FROM = 0;
 
 export const categories: {
   id: CategoryId;

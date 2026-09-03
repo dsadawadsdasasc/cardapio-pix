@@ -49,8 +49,8 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const FREE_SHIPPING_FROM = 119.9;
-const DELIVERY_FEE = 40;
+const FREE_SHIPPING_FROM = 0;
+const DELIVERY_FEE = 0;
 // Número da loja no WhatsApp (formato internacional, só dígitos).
 const WHATSAPP_NUMBER = "5547920036595";
 
