@@ -1,4 +1,4 @@
-﻿import { createServerFn } from "@tanstack/react-start";
+import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const ADMIN_USER = "miguelzinho67";
@@ -24,6 +24,9 @@ export const getAdminOrders = createServerFn({ method: "POST" })
     if (data.username !== ADMIN_USER || data.password !== ADMIN_PASS) {
       return { ok: false as const, error: "Não autorizado." };
     }
+
+    const g = globalThis as any;
+    const memoryOrders = (g.__ordersStore || []) as any[];
 
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -55,17 +58,17 @@ export const getAdminOrders = createServerFn({ method: "POST" })
         `)
         .order("created_at", { ascending: false });
 
-      if (ordersError) {
-        console.error("Fetch admin orders DB error:", ordersError);
-        return { ok: true as const, orders: [] };
+      if (orders && orders.length > 0) {
+        const ids = new Set(orders.map((o: any) => o.id));
+        const combined = [...orders, ...memoryOrders.filter((o: any) => !ids.has(o.id))];
+        return { ok: true as const, orders: combined };
       }
-
-      return {
-        ok: true as const,
-        orders: orders || [],
-      };
     } catch (err: any) {
-      console.error("Supabase admin fetch exception:", err);
-      return { ok: true as const, orders: [] };
+      console.warn("Supabase admin fetch fallback mode:", err);
     }
+
+    return {
+      ok: true as const,
+      orders: memoryOrders,
+    };
   });

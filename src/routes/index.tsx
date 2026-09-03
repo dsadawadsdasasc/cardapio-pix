@@ -151,7 +151,20 @@ function Index() {
         data: { username: credentials.user, password: credentials.pass },
       });
       if (res.ok) {
-        setAdminOrders(res.orders);
+        let combined = [...(res.orders || [])];
+        if (typeof window !== "undefined") {
+          try {
+            const localSaved = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+            const ids = new Set(combined.map((o: any) => o.id));
+            for (const lo of localSaved) {
+              if (!ids.has(lo.id)) {
+                combined.push(lo);
+                ids.add(lo.id);
+              }
+            }
+          } catch {}
+        }
+        setAdminOrders(combined);
       } else {
         setAdminOrdersError(res.error);
         if (res.error === "Não autorizado.") {
@@ -735,7 +748,20 @@ function Index() {
                         </p>
                         <button
                           type="button"
-                          onClick={() => setPaid(true)}
+                          onClick={() => {
+                            setPaid(true);
+                            if (typeof window !== "undefined" && pix?.orderId) {
+                              try {
+                                const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+                                const updated = list.map((o: any) =>
+                                  o.id === pix.orderId
+                                    ? { ...o, payment_status: "paid", paid_at: new Date().toISOString() }
+                                    : o,
+                                );
+                                localStorage.setItem("cantinho_orders", JSON.stringify(updated));
+                              } catch {}
+                            }
+                          }}
                           className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-accent/60 bg-accent/15 px-6 py-2.5 text-xs font-bold text-accent hover:bg-accent/25 transition-colors"
                         >
                           <Check className="h-4 w-4" />
@@ -768,6 +794,35 @@ function Index() {
                         if (res.ok) {
                           setPix(res);
                           setPaid(res.paid);
+                          if (typeof window !== "undefined") {
+                            try {
+                              const localOrder = {
+                                id: res.orderId,
+                                customer_name: form.name,
+                                customer_phone: form.phone,
+                                address: form.address,
+                                notes: form.notes || null,
+                                subtotal_cents: Math.round(subtotal * 100),
+                                shipping_cents: 0,
+                                total_cents: Math.round(subtotal * 100),
+                                payment_status: res.paid ? "paid" : "unpaid",
+                                payment_provider: "onipay",
+                                created_at: new Date().toISOString(),
+                                paid_at: res.paid ? new Date().toISOString() : null,
+                                order_items: detailed.map((d, i) => ({
+                                  id: `item_${i}_${Date.now()}`,
+                                  item_id: d.item.id,
+                                  item_name: d.item.name,
+                                  qty: d.line.qty,
+                                  unit_price_cents: Math.round((d.total / d.line.qty) * 100),
+                                  addons: d.addons,
+                                  notes: d.line.notes || null,
+                                })),
+                              };
+                              const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+                              localStorage.setItem("cantinho_orders", JSON.stringify([localOrder, ...list.filter((o: any) => o.id !== res.orderId)].slice(0, 50)));
+                            } catch {}
+                          }
                         } else {
                           setError(res.error);
                         }

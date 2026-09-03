@@ -53,6 +53,15 @@ export const Route = createFileRoute("/api/public/onipay")({
           if (externalId) g.__paidOrders.add(String(externalId));
           if (depositId) g.__paidOrders.add(String(depositId));
 
+          if (g.__ordersStore && Array.isArray(g.__ordersStore)) {
+            for (const ord of g.__ordersStore) {
+              if (ord.id === externalId || ord.id === depositId || `pedido-${ord.id}` === externalId) {
+                ord.payment_status = "paid";
+                ord.paid_at = event.data?.paidAt ?? new Date().toISOString();
+              }
+            }
+          }
+
           try {
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             const query = supabaseAdmin

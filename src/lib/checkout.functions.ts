@@ -140,6 +140,34 @@ export const createPixOrder = createServerFn({ method: "POST" })
       console.warn("DB insert fallback mode:", dbErr);
     }
 
+    // Registra o pedido no armazenamento em memória para o painel ADM
+    const g = globalThis as any;
+    g.__ordersStore = g.__ordersStore || [];
+    const memoryOrder = {
+      id: orderId,
+      customer_name: data.customerName,
+      customer_phone: data.customerPhone,
+      address: data.address,
+      notes: data.notes || null,
+      subtotal_cents: subtotalCents,
+      shipping_cents: shippingCents,
+      total_cents: totalCents,
+      payment_status: "unpaid",
+      payment_provider: token ? "onipay" : "pix_direct",
+      created_at: new Date().toISOString(),
+      paid_at: null,
+      order_items: lines.map((l, idx) => ({
+        id: `item_${idx}_${Date.now()}`,
+        item_id: l.item_id,
+        item_name: l.item_name,
+        qty: l.qty,
+        unit_price_cents: l.unit_price_cents,
+        addons: l.addons,
+        notes: l.notes,
+      })),
+    };
+    g.__ordersStore = [memoryOrder, ...g.__ordersStore.filter((o: any) => o.id !== orderId)];
+
     // Se a chave de API do OniPay não estiver configurada, gera o código Pix direto com CRC16 válido
     if (!token) {
       console.warn("[OniPay] Token de API não configurado. Gerando chave Pix de pagamento direto.");
