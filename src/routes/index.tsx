@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, Copy, Loader2, Truck } from "lucide-react";
+import { Check, Clock, Copy, DollarSign, Loader2, Lock, LogOut, RefreshCw, Shield, ShoppingBag, Truck } from "lucide-react";
+import { getAdminOrders, loginAdmin } from "@/lib/admin.functions";
 
 
 import heroImg from "@/assets/hero.jpg";
@@ -20,7 +21,12 @@ import { createPixOrder, getOrderPaymentStatus } from "@/lib/checkout.functions"
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
-    tab: search["tab"] === "pedido" ? ("pedido" as const) : ("cardapio" as const),
+    tab:
+      search["tab"] === "pedido"
+        ? ("pedido" as const)
+        : search["tab"] === "vendas"
+        ? ("vendas" as const)
+        : ("cardapio" as const),
   }),
   head: () => ({
     meta: [
@@ -73,7 +79,7 @@ function Index() {
   const [active, setActive] = useState<CategoryId | "todos">("todos");
   const lines = useCart();
 
-  const setTab = (next: "cardapio" | "pedido") =>
+  const setTab = (next: "cardapio" | "pedido" | "vendas") =>
     navigate({ to: "/", search: { tab: next } });
 
   const groups = useMemo(
@@ -117,8 +123,55 @@ function Index() {
   const [pix, setPix] = useState<PixState | null>(null);
   const [paid, setPaid] = useState(false);
   const [copied, setCopied] = useState(false);
-  const PAYMENT_ERROR_RATE = 0.2;
-  const [showPaymentError, setShowPaymentError] = useState(false);
+  const [adminAuth, setAdminAuth] = useState<{ user: string; pass: string } | null>(() => {
+    if (typeof window !== "undefined") {
+      const savedUser = sessionStorage.getItem("adm_user");
+      const savedPass = sessionStorage.getItem("adm_pass");
+      if (savedUser && savedPass) return { user: savedUser, pass: savedPass };
+    }
+    return null;
+  });
+  const [adminLoginForm, setAdminLoginForm] = useState({ username: "", password: "" });
+  const [adminLoginSubmitting, setAdminLoginSubmitting] = useState(false);
+  const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
+
+  const [adminOrders, setAdminOrders] = useState<any[]>([]);
+  const [loadingAdminOrders, setLoadingAdminOrders] = useState(false);
+  const [adminOrdersError, setAdminOrdersError] = useState<string | null>(null);
+
+  const doAdminLogin = useServerFn(loginAdmin);
+  const fetchAdminOrders = useServerFn(getAdminOrders);
+
+  const loadSalesOrders = async (credentials = adminAuth) => {
+    if (!credentials) return;
+    setLoadingAdminOrders(true);
+    setAdminOrdersError(null);
+    try {
+      const res = await fetchAdminOrders({
+        data: { username: credentials.user, password: credentials.pass },
+      });
+      if (res.ok) {
+        setAdminOrders(res.orders);
+      } else {
+        setAdminOrdersError(res.error);
+        if (res.error === "Não autorizado.") {
+          setAdminAuth(null);
+          sessionStorage.removeItem("adm_user");
+          sessionStorage.removeItem("adm_pass");
+        }
+      }
+    } catch {
+      setAdminOrdersError("Falha de conexão ao buscar vendas.");
+    } finally {
+      setLoadingAdminOrders(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === "vendas" && adminAuth) {
+      loadSalesOrders(adminAuth);
+    }
+  }, [tab, adminAuth]);
 
   useEffect(() => {
     if (!pix || paid) return;
@@ -233,11 +286,12 @@ function Index() {
           </button>
         </div>
 
-        <div className="mx-auto flex max-w-6xl gap-1 px-4">
+        <div className="mx-auto flex max-w-6xl gap-1 px-4 overflow-x-auto scrollbar-none">
           {(
             [
               { id: "cardapio", label: "Cardápio" },
               { id: "pedido", label: `Meu pedido${itemCount ? ` (${itemCount})` : ""}` },
+              { id: "vendas", label: "Painel Vendas 🔒" },
             ] as const
           ).map((t) => (
             <button
@@ -245,7 +299,7 @@ function Index() {
               type="button"
               onClick={() => setTab(t.id)}
               aria-current={tab === t.id}
-              className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+              className={`-mb-px shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
                 tab === t.id
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -512,7 +566,7 @@ function Index() {
               </div>
             </section>
           </>
-        ) : (
+        ) : tab === "pedido" ? (
           <section className="mx-auto max-w-3xl px-4 py-8">
             <h2 className="text-2xl font-bold tracking-tight">Seu pedido</h2>
             {detailed.length === 0 ? (
@@ -819,6 +873,282 @@ function Index() {
                   </form>
                 )}
 
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="mx-auto max-w-5xl px-4 py-8">
+            {!adminAuth ? (
+              <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
+                <div className="flex items-center justify-center gap-2 text-primary">
+                  <Lock className="h-6 w-6" />
+                  <h2 className="text-xl font-bold">Acesso Restrito ADM</h2>
+                </div>
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  Digite as credenciais de administrador para visualizar o painel de vendas.
+                </p>
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setAdminLoginError(null);
+                    setAdminLoginSubmitting(true);
+                    try {
+                      const res = await doAdminLogin({
+                        data: {
+                          username: adminLoginForm.username,
+                          password: adminLoginForm.password,
+                        },
+                      });
+                      if (res.ok) {
+                        const credentials = {
+                          user: adminLoginForm.username,
+                          pass: adminLoginForm.password,
+                        };
+                        setAdminAuth(credentials);
+                        sessionStorage.setItem("adm_user", credentials.user);
+                        sessionStorage.setItem("adm_pass", credentials.pass);
+                        setAdminLoginForm({ username: "", password: "" });
+                        loadSalesOrders(credentials);
+                      } else {
+                        setAdminLoginError(res.error);
+                      }
+                    } catch {
+                      setAdminLoginError("Erro de comunicação com o servidor.");
+                    } finally {
+                      setAdminLoginSubmitting(false);
+                    }
+                  }}
+                  className="mt-5 space-y-4"
+                >
+                  <label className="block text-sm">
+                    <span className="text-muted-foreground font-medium">Usuário</span>
+                    <input
+                      required
+                      type="text"
+                      value={adminLoginForm.username}
+                      onChange={(e) =>
+                        setAdminLoginForm({ ...adminLoginForm, username: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary"
+                      placeholder="Login ADM"
+                    />
+                  </label>
+
+                  <label className="block text-sm">
+                    <span className="text-muted-foreground font-medium">Senha</span>
+                    <input
+                      required
+                      type="password"
+                      value={adminLoginForm.password}
+                      onChange={(e) =>
+                        setAdminLoginForm({ ...adminLoginForm, password: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary"
+                      placeholder="Senha ADM"
+                    />
+                  </label>
+
+                  {adminLoginError && (
+                    <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive text-center">
+                      {adminLoginError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={adminLoginSubmitting}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60 shadow-md"
+                  >
+                    {adminLoginSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Shield className="h-4 w-4" />
+                    )}
+                     Entrar no Painel ADM
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-accent/15 p-2 text-accent">
+                        <DollarSign className="h-5 w-5" />
+                      </span>
+                      <h2 className="text-2xl font-bold tracking-tight">Painel de Vendas</h2>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Conectado como <strong className="text-foreground">{adminAuth.user}</strong>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => loadSalesOrders()}
+                      disabled={loadingAdminOrders}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-xs font-semibold hover:bg-secondary transition-colors"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${loadingAdminOrders ? "animate-spin" : ""}`} />
+                      Atualizar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminAuth(null);
+                        sessionStorage.removeItem("adm_user");
+                        sessionStorage.removeItem("adm_pass");
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-xs font-semibold text-destructive hover:bg-destructive/20 transition-colors"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                      Sair
+                    </button>
+                  </div>
+                </div>
+
+                {/* Métricas do Painel */}
+                <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                    <p className="text-xs font-medium text-muted-foreground">Total em Vendas</p>
+                    <p className="mt-1.5 text-2xl font-extrabold text-accent">
+                      {formatBRL(
+                        adminOrders.reduce((sum, o) => sum + (o.total_cents || 0), 0) / 100,
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                    <p className="text-xs font-medium text-muted-foreground">Total de Pedidos</p>
+                    <p className="mt-1.5 text-2xl font-extrabold text-foreground">
+                      {adminOrders.length}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                    <p className="text-xs font-medium text-muted-foreground">Pedidos Pagos (Pix)</p>
+                    <p className="mt-1.5 text-2xl font-extrabold text-primary">
+                      {adminOrders.filter((o) => o.payment_status === "paid").length}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Lista de Vendas */}
+                <div className="mt-8">
+                  <h3 className="text-lg font-bold">Histórico de Compras</h3>
+
+                  {loadingAdminOrders ? (
+                    <div className="mt-4 flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      Carregando registro de vendas...
+                    </div>
+                  ) : adminOrdersError ? (
+                    <p className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                      {adminOrdersError}
+                    </p>
+                  ) : adminOrders.length === 0 ? (
+                    <div className="mt-4 rounded-2xl border border-border bg-card p-8 text-center text-muted-foreground">
+                      <ShoppingBag className="mx-auto h-8 w-8 opacity-50" />
+                      <p className="mt-2 text-sm">Nenhuma venda registrada até o momento.</p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-4">
+                      {adminOrders.map((order) => {
+                        const dateStr = new Date(order.created_at).toLocaleString("pt-BR", {
+                          dateStyle: "short",
+                          timeStyle: "medium",
+                        });
+                        const isPaid = order.payment_status === "paid";
+
+                        return (
+                          <div
+                            key={order.id}
+                            className="overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm transition-all hover:border-primary/50"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                              <div>
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                  Pedido nº {order.id.slice(0, 8)}
+                                </span>
+                                <span className="ml-3 text-xs text-muted-foreground">
+                                  🕒 {dateStr}
+                                </span>
+                              </div>
+
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
+                                  isPaid
+                                    ? "bg-accent/15 text-accent border border-accent/30"
+                                    : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
+                                }`}
+                              >
+                                {isPaid ? "✓ Pix Pago" : "⏳ Pagamento Pendente"}
+                              </span>
+                            </div>
+
+                            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                                  Cliente & Contato
+                                </p>
+                                <p className="mt-1 font-bold text-foreground">
+                                  {order.customer_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  📞 {order.customer_phone}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  📍 {order.address}
+                                </p>
+                                {order.notes && (
+                                  <p className="mt-1 text-xs italic text-muted-foreground">
+                                    Obs: “{order.notes}”
+                                  </p>
+                                )}
+                              </div>
+
+                              <div>
+                                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                                  Itens / Combos Comprados
+                                </p>
+                                <ul className="mt-1 space-y-1">
+                                  {order.order_items?.map((item: any) => (
+                                    <li key={item.id} className="text-sm">
+                                      <span className="font-semibold">{item.qty}x</span>{" "}
+                                      <span className="font-medium">{item.item_name}</span>
+                                      <span className="ml-1 text-xs text-muted-foreground">
+                                        ({formatBRL((item.unit_price_cents * item.qty) / 100)})
+                                      </span>
+                                      {Array.isArray(item.addons) && item.addons.length > 0 && (
+                                        <p className="text-xs text-muted-foreground pl-4">
+                                          + {item.addons.map((a: any) => a.name).join(", ")}
+                                        </p>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-sm">
+                              <span className="text-xs text-muted-foreground">
+                                Subtotal: {formatBRL(order.subtotal_cents / 100)} | Entrega:{" "}
+                                {order.shipping_cents === 0
+                                  ? "Grátis"
+                                  : formatBRL(order.shipping_cents / 100)}
+                              </span>
+                              <span className="text-base font-black text-foreground">
+                                Total: {formatBRL(order.total_cents / 100)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </section>
