@@ -913,8 +913,9 @@ function Index() {
                       } else {
                         setAdminLoginError(res.error);
                       }
-                    } catch {
-                      setAdminLoginError("Erro de comunicação com o servidor.");
+                    } catch (err: any) {
+                      console.error("Login error:", err);
+                      setAdminLoginError(err?.message || "Erro de comunicação com o servidor.");
                     } finally {
                       setAdminLoginSubmitting(false);
                     }
