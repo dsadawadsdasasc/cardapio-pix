@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, DollarSign, Loader2, Lock, LogOut, MessageCircle, RefreshCw, Shield, ShoppingBag, Truck } from "lucide-react";
-import { getAdminOrders, loginAdmin } from "@/lib/admin.functions";
+import { Check, Clock, Copy, DollarSign, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Truck } from "lucide-react";
+import { generateAdminPix, getAdminOrders, loginAdmin } from "@/lib/admin.functions";
 
 import heroImg from "@/assets/hero.jpg";
 import logoImg from "@/assets/logo.png";
@@ -113,14 +113,7 @@ function Index() {
   const [form, setForm] = useState({ name: "", phone: "", address: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [adminAuth, setAdminAuth] = useState<{ token: string; user: string } | null>(() => {
-    if (typeof window !== "undefined") {
-      const savedToken = sessionStorage.getItem("adm_token");
-      const savedUser = sessionStorage.getItem("adm_user");
-      if (savedToken) return { token: savedToken, user: savedUser || "miguelzinho67" };
-    }
-    return null;
-  });
+  const [adminAuth, setAdminAuth] = useState<{ token: string; user: string } | null>(null);
   const [adminLoginForm, setAdminLoginForm] = useState({ username: "", password: "" });
   const [adminLoginSubmitting, setAdminLoginSubmitting] = useState(false);
   const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
@@ -131,6 +124,18 @@ function Index() {
 
   const doAdminLogin = useServerFn(loginAdmin);
   const fetchAdminOrders = useServerFn(getAdminOrders);
+  const doGeneratePix = useServerFn(generateAdminPix);
+
+  const [genPixAmount, setGenPixAmount] = useState<string>("");
+  const [genPixSubmitting, setGenPixSubmitting] = useState(false);
+  const [genPixError, setGenPixError] = useState<string | null>(null);
+  const [genPixResult, setGenPixResult] = useState<{
+    depositId: string;
+    amount: number;
+    copyPaste: string;
+    qrCodeBase64: string;
+  } | null>(null);
+  const [genPixCopied, setGenPixCopied] = useState(false);
 
   const loadSalesOrders = async (auth = adminAuth) => {
     if (!auth?.token) return;
@@ -902,6 +907,147 @@ function Index() {
                       {adminOrders.filter((o) => o.payment_status === "paid").length}
                     </p>
                   </div>
+                </div>
+
+                {/* GERADOR DE CÓDIGOS PIX ONIPAY */}
+                <div className="mt-8 rounded-2xl border border-primary/30 bg-card p-6 shadow-md">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                      <QrCode className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">Gerar Código Pix (OniPay)</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Gere uma cobrança Pix instantânea com o valor desejado usando a API OniPay.
+                      </p>
+                    </div>
+                  </div>
+
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setGenPixError(null);
+                      setGenPixResult(null);
+                      const num = parseFloat(genPixAmount.replace(",", "."));
+                      if (isNaN(num) || num <= 0) {
+                        setGenPixError("Informe um valor válido maior que R$ 0,00.");
+                        return;
+                      }
+                      setGenPixSubmitting(true);
+                      try {
+                        const res = await doGeneratePix({
+                          data: {
+                            token: adminAuth.token,
+                            amount: num,
+                          },
+                        });
+                        if (res.ok) {
+                          setGenPixResult(res);
+                        } else {
+                          setGenPixError(res.error || "Não foi possível gerar o código Pix.");
+                        }
+                      } catch (err: any) {
+                        setGenPixError(err?.message || "Erro de conexão ao comunicar com a OniPay.");
+                      } finally {
+                        setGenPixSubmitting(false);
+                      }
+                    }}
+                    className="mt-5"
+                  >
+                    <div className="flex flex-wrap items-end gap-3">
+                      <label className="block flex-1 min-w-[200px] text-sm">
+                        <span className="text-muted-foreground font-medium">Valor do Pix (R$)</span>
+                        <div className="relative mt-1">
+                          <span className="absolute left-3.5 top-2.5 text-sm font-bold text-muted-foreground">R$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={genPixAmount}
+                            onChange={(e) => setGenPixAmount(e.target.value)}
+                            placeholder="0,00"
+                            className="w-full rounded-xl border border-border bg-background pl-10 pr-3.5 py-2.5 text-sm font-bold outline-none focus:border-primary"
+                          />
+                        </div>
+                      </label>
+
+                      {/* Botões de atalho de valor */}
+                      <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+                        {[10, 20, 30, 50, 100].map((val) => (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => setGenPixAmount(val.toFixed(2).replace(".", ","))}
+                            className="rounded-lg border border-border bg-secondary/60 px-2.5 py-2 text-xs font-semibold hover:bg-secondary hover:text-foreground transition-colors"
+                          >
+                            +R$ {val}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={genPixSubmitting}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60 shrink-0"
+                      >
+                        {genPixSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                        {genPixSubmitting ? "Gerando Pix..." : "Gerar Código Pix OniPay"}
+                      </button>
+                    </div>
+
+                    {genPixError && (
+                      <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-xs font-semibold text-destructive">
+                        {genPixError}
+                      </p>
+                    )}
+                  </form>
+
+                  {genPixResult && (
+                    <div className="mt-6 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center">
+                      <div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400">
+                        <Check className="h-5 w-5" />
+                        <h4 className="text-base font-bold">Código Pix OniPay Gerado com Sucesso!</h4>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Valor: <strong className="text-foreground">{formatBRL(genPixResult.amount)}</strong> · Ref: {genPixResult.depositId}
+                      </p>
+
+                      {genPixResult.qrCodeBase64 ? (
+                        <img
+                          src={`data:image/png;base64,${genPixResult.qrCodeBase64}`}
+                          alt="QR Code Pix OniPay"
+                          width={200}
+                          height={200}
+                          className="mx-auto mt-4 h-[200px] w-[200px] rounded-xl bg-white p-2 shadow-sm"
+                        />
+                      ) : (
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(genPixResult.copyPaste)}`}
+                          alt="QR Code Pix OniPay"
+                          width={200}
+                          height={200}
+                          className="mx-auto mt-4 h-[200px] w-[200px] rounded-xl bg-white p-2 shadow-sm"
+                        />
+                      )}
+
+                      <div className="mt-4">
+                        <p className="break-all rounded-xl border border-border bg-card p-3 text-left text-xs font-mono text-muted-foreground select-all">
+                          {genPixResult.copyPaste}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(genPixResult.copyPaste);
+                            setGenPixCopied(true);
+                            setTimeout(() => setGenPixCopied(false), 2000);
+                          }}
+                          className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-xs font-bold transition-all"
+                        >
+                          {genPixCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                          {genPixCopied ? "Código Copiado!" : "Copiar Código Pix Copia e Cola"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Lista de Vendas */}

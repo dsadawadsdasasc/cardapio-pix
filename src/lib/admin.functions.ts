@@ -189,3 +189,64 @@ export const getAdminOrders = createServerFn({ method: "POST" })
       orders: memoryOrders,
     };
   });
+
+const generateAdminPixSchema = z.object({
+  token: z.string().min(1),
+  amount: z.number().min(0.01).max(100000),
+});
+
+export const generateAdminPix = createServerFn({ method: "POST" })
+  .validator((data: unknown) => generateAdminPixSchema.parse(data))
+  .handler(async ({ data }) => {
+    const authorized = await verifySessionToken(data.token);
+    if (!authorized) {
+      return { ok: false as const, error: "Não autorizado." };
+    }
+
+    const token = process.env["ONIPAY_TOKEN_API"] || "36a96084e79738123f70dd7b610cb749";
+    const externalId = `adm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const amount = Number(data.amount.toFixed(2));
+
+    try {
+      const res = await fetch("https://onipaybot.com.br/api/v1/deposits/", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": `adm-pix-${externalId}`,
+        },
+        body: JSON.stringify({
+          amount,
+          callbackUrl: "https://cantinhodagula.online/api/public/onipay",
+          externalId,
+        }),
+      });
+
+      const payload = (await res.json().catch(() => ({}))) as any;
+
+      if (!res.ok) {
+        return {
+          ok: false as const,
+          error: payload?.error?.message ?? `Erro OniPay (${res.status}): Não foi possível gerar o código Pix.`,
+        };
+      }
+
+      const deposit = payload.data;
+      const copyPaste = deposit?.pix?.copyPaste ?? "";
+      const qrCodeBase64 = deposit?.pix?.qrCodeBase64 ?? "";
+
+      if (!copyPaste) {
+        return { ok: false as const, error: "A OniPay não retornou o código Pix." };
+      }
+
+      return {
+        ok: true as const,
+        depositId: deposit?.id ?? externalId,
+        amount,
+        copyPaste,
+        qrCodeBase64,
+      };
+    } catch (err: any) {
+      return { ok: false as const, error: `Falha de conexão com a OniPay: ${err?.message || err}` };
+    }
+  });
