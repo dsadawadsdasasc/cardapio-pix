@@ -112,8 +112,14 @@ function Index() {
 
   const [form, setForm] = useState({ name: "", phone: "", address: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [adminAuth, setAdminAuth] = useState<{ token: string; user: string } | null>(null);
+  const [adminAuth, setAdminAuth] = useState<{ token: string; user: string } | null>(() => {
+    if (typeof window !== "undefined") {
+      const savedToken = localStorage.getItem("adm_token") || sessionStorage.getItem("adm_token");
+      const savedUser = localStorage.getItem("adm_user") || sessionStorage.getItem("adm_user");
+      if (savedToken) return { token: savedToken, user: savedUser || "miguelzinho67" };
+    }
+    return null;
+  });
   const [adminLoginForm, setAdminLoginForm] = useState({ username: "", password: "" });
   const [adminLoginSubmitting, setAdminLoginSubmitting] = useState(false);
   const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
@@ -778,6 +784,8 @@ function Index() {
                           user: adminLoginForm.username,
                         };
                         setAdminAuth(auth);
+                        localStorage.setItem("adm_token", res.token);
+                        localStorage.setItem("adm_user", adminLoginForm.username);
                         sessionStorage.setItem("adm_token", res.token);
                         sessionStorage.setItem("adm_user", adminLoginForm.username);
                         setAdminLoginForm({ username: "", password: "" });
@@ -872,6 +880,8 @@ function Index() {
                       onClick={() => {
                         setAdminAuth(null);
                         setAdminOrders([]);
+                        localStorage.removeItem("adm_token");
+                        localStorage.removeItem("adm_user");
                         sessionStorage.removeItem("adm_token");
                         sessionStorage.removeItem("adm_user");
                       }}
