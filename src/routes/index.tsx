@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, Copy, DollarSign, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Truck } from "lucide-react";
-import { generateAdminPix, getAdminOrders, loginAdmin } from "@/lib/admin.functions";
+import { Check, Clock, Copy, DollarSign, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Trash2, Truck } from "lucide-react";
+import { deleteAdminOrder, generateAdminPix, getAdminOrders, loginAdmin } from "@/lib/admin.functions";
 
 import heroImg from "@/assets/hero.jpg";
 import logoImg from "@/assets/logo.png";
@@ -62,6 +62,50 @@ const filters: { id: CategoryId | "todos"; label: string }[] = [
   ...categories.map((c) => ({ id: c.id, label: c.label })),
 ];
 
+function saveAdminAuth(token: string, user: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem("adm_token", token);
+    localStorage.setItem("adm_user", user);
+    sessionStorage.setItem("adm_token", token);
+    sessionStorage.setItem("adm_user", user);
+    document.cookie = `adm_token=${encodeURIComponent(token)}; max-age=31536000; path=/; SameSite=Lax`;
+    document.cookie = `adm_user=${encodeURIComponent(user)}; max-age=31536000; path=/; SameSite=Lax`;
+  } catch {}
+}
+
+function clearAdminAuth() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("adm_token");
+    localStorage.removeItem("adm_user");
+    sessionStorage.removeItem("adm_token");
+    sessionStorage.removeItem("adm_user");
+    document.cookie = "adm_token=; max-age=0; path=/";
+    document.cookie = "adm_user=; max-age=0; path=/";
+  } catch {}
+}
+
+function getSavedAdminAuth(): { token: string; user: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    let token = localStorage.getItem("adm_token") || sessionStorage.getItem("adm_token");
+    let user = localStorage.getItem("adm_user") || sessionStorage.getItem("adm_user");
+
+    if (!token && document.cookie) {
+      const matchToken = document.cookie.match(/adm_token=([^;]+)/);
+      const matchUser = document.cookie.match(/adm_user=([^;]+)/);
+      if (matchToken) token = decodeURIComponent(matchToken[1]);
+      if (matchUser) user = decodeURIComponent(matchUser[1]);
+    }
+
+    if (token) {
+      return { token, user: user || "miguelzinho67" };
+    }
+  } catch {}
+  return null;
+}
+
 const lineUnitPrice = (item: MenuItem, addonIds: string[]) =>
   item.price +
   getAddons(item.category)
@@ -112,14 +156,7 @@ function Index() {
 
   const [form, setForm] = useState({ name: "", phone: "", address: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
-  const [adminAuth, setAdminAuth] = useState<{ token: string; user: string } | null>(() => {
-    if (typeof window !== "undefined") {
-      const savedToken = localStorage.getItem("adm_token") || sessionStorage.getItem("adm_token");
-      const savedUser = localStorage.getItem("adm_user") || sessionStorage.getItem("adm_user");
-      if (savedToken) return { token: savedToken, user: savedUser || "miguelzinho67" };
-    }
-    return null;
-  });
+  const [adminAuth, setAdminAuth] = useState<{ token: string; user: string } | null>(() => getSavedAdminAuth());
   const [adminLoginForm, setAdminLoginForm] = useState({ username: "", password: "" });
   const [adminLoginSubmitting, setAdminLoginSubmitting] = useState(false);
   const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
@@ -131,6 +168,40 @@ function Index() {
   const doAdminLogin = useServerFn(loginAdmin);
   const fetchAdminOrders = useServerFn(getAdminOrders);
   const doGeneratePix = useServerFn(generateAdminPix);
+  const doDeleteOrder = useServerFn(deleteAdminOrder);
+
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
+
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!adminAuth?.token) return;
+    if (typeof window !== "undefined" && !window.confirm("Deseja realmente excluir este registro de venda do histórico?")) {
+      return;
+    }
+    setDeletingOrderId(orderId);
+    try {
+      const res = await doDeleteOrder({
+        data: {
+          token: adminAuth.token,
+          orderId,
+        },
+      });
+      if (res.ok) {
+        setAdminOrders((prev) => prev.filter((o) => o.id !== orderId));
+        if (typeof window !== "undefined") {
+          try {
+            const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+            localStorage.setItem("cantinho_orders", JSON.stringify(list.filter((o: any) => o.id !== orderId)));
+          } catch {}
+        }
+      } else {
+        alert(res.error || "Não foi possível excluir o pedido.");
+      }
+    } catch {
+      alert("Erro ao excluir registro de venda.");
+    } finally {
+      setDeletingOrderId(null);
+    }
+  };
 
   const [genPixAmount, setGenPixAmount] = useState<string>("");
   const [genPixSubmitting, setGenPixSubmitting] = useState(false);
@@ -784,10 +855,7 @@ function Index() {
                           user: adminLoginForm.username,
                         };
                         setAdminAuth(auth);
-                        localStorage.setItem("adm_token", res.token);
-                        localStorage.setItem("adm_user", adminLoginForm.username);
-                        sessionStorage.setItem("adm_token", res.token);
-                        sessionStorage.setItem("adm_user", adminLoginForm.username);
+                        saveAdminAuth(res.token, adminLoginForm.username);
                         setAdminLoginForm({ username: "", password: "" });
                         loadSalesOrders(auth);
                       } else {
@@ -880,10 +948,7 @@ function Index() {
                       onClick={() => {
                         setAdminAuth(null);
                         setAdminOrders([]);
-                        localStorage.removeItem("adm_token");
-                        localStorage.removeItem("adm_user");
-                        sessionStorage.removeItem("adm_token");
-                        sessionStorage.removeItem("adm_user");
+                        clearAdminAuth();
                       }}
                       className="inline-flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-xs font-semibold text-destructive hover:bg-destructive/20 transition-colors"
                     >
@@ -1137,17 +1202,34 @@ function Index() {
                                 </span>
                               </div>
 
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
-                                  isPaid
-                                    ? "bg-accent/15 text-accent border border-accent/30"
-                                    : isWhatsApp
-                                    ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
-                                    : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
-                                }`}
-                              >
-                                {isPaid ? "✓ Pix Pago" : isWhatsApp ? "💬 WhatsApp" : "⏳ Pix Pendente"}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
+                                    isPaid
+                                      ? "bg-accent/15 text-accent border border-accent/30"
+                                      : isWhatsApp
+                                      ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
+                                      : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
+                                  }`}
+                                >
+                                  {isPaid ? "✓ Pix Pago" : isWhatsApp ? "💬 WhatsApp" : "⏳ Pix Pendente"}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  disabled={deletingOrderId === order.id}
+                                  onClick={() => handleDeleteOrder(order.id)}
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-2.5 py-1 text-xs font-bold text-destructive hover:bg-destructive/25 transition-colors disabled:opacity-50"
+                                  title="Excluir do histórico"
+                                >
+                                  {deletingOrderId === order.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  )}
+                                  Excluir
+                                </button>
+                              </div>
                             </div>
 
                             <div className="mt-3 grid gap-4 sm:grid-cols-2">

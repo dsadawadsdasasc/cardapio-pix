@@ -302,3 +302,32 @@ export const generateAdminPix = createServerFn({ method: "POST" })
       return { ok: false as const, error: `Falha de conexão com a OniPay: ${err?.message || err}` };
     }
   });
+
+const deleteAdminOrderSchema = z.object({
+  token: z.string().min(1),
+  orderId: z.string().min(1),
+});
+
+export const deleteAdminOrder = createServerFn({ method: "POST" })
+  .validator((data: unknown) => deleteAdminOrderSchema.parse(data))
+  .handler(async ({ data }) => {
+    const authorized = await verifySessionToken(data.token);
+    if (!authorized) {
+      return { ok: false as const, error: "Não autorizado." };
+    }
+
+    const g = globalThis as any;
+    if (Array.isArray(g.__ordersStore)) {
+      g.__ordersStore = g.__ordersStore.filter((o: any) => o.id !== data.orderId);
+    }
+
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.from("order_items").delete().eq("order_id", data.orderId);
+      await supabaseAdmin.from("orders").delete().eq("id", data.orderId);
+    } catch {
+      /* fallback ignore */
+    }
+
+    return { ok: true as const, orderId: data.orderId };
+  });
