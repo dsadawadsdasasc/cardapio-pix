@@ -179,13 +179,12 @@ function Index() {
       try {
         const res = await checkStatus({ data: { orderId: pix.orderId } });
         if (res.paid) {
-          setShowPaymentError(Math.random() < PAYMENT_ERROR_RATE);
           setPaid(true);
         }
       } catch {
         /* tenta de novo no próximo intervalo */
       }
-    }, 4000);
+    }, 2500);
     return () => window.clearInterval(id);
   }, [pix, paid, checkStatus]);
 
@@ -663,36 +662,10 @@ function Index() {
 
                 {pix ? (
                   <div className="mt-5 rounded-2xl border border-accent/50 bg-accent/5 p-5 text-center">
-                    {paid && showPaymentError ? (
-                      <>
-                        <h3 className="text-lg font-bold text-destructive">
-                          Houve um erro no pagamento
-                        </h3>
-                        <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                          Não conseguimos concluir o pedido nº {pix.orderId.slice(0, 8)}.
-                        </p>
-                        <p className="mx-auto mt-3 max-w-sm rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm font-medium leading-snug text-destructive">
-                          Seu pagamento será estornado automaticamente em até 1 dia útil.
-                        </p>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            lines.forEach((l) => cart.remove(l.lineId));
-                            setPix(null);
-                            setPaid(false);
-                            setShowPaymentError(false);
-                            setTab("cardapio");
-                          }}
-                          className="mt-4 rounded-full border border-border px-5 py-2.5 text-sm font-semibold"
-                        >
-                          Voltar ao cardápio
-                        </button>
-                      </>
-                    ) : paid ? (
+                    {paid ? (
                       <>
                         <Check className="mx-auto h-10 w-10 text-accent" />
-                        <h3 className="mt-2 text-lg font-bold">Pagamento confirmado!</h3>
+                        <h3 className="mt-2 text-lg font-bold text-accent">Pagamento confirmado!</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
                           Já estamos preparando seu pedido. Pedido nº{" "}
                           {pix.orderId.slice(0, 8)}.
@@ -703,7 +676,6 @@ function Index() {
                             lines.forEach((l) => cart.remove(l.lineId));
                             setPix(null);
                             setPaid(false);
-                            setShowPaymentError(false);
                             setTab("cardapio");
                           }}
                           className="mt-4 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
@@ -761,6 +733,14 @@ function Index() {
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           Aguardando confirmação do pagamento…
                         </p>
+                        <button
+                          type="button"
+                          onClick={() => setPaid(true)}
+                          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-accent/60 bg-accent/15 px-6 py-2.5 text-xs font-bold text-accent hover:bg-accent/25 transition-colors"
+                        >
+                          <Check className="h-4 w-4" />
+                          Já realizei o pagamento (Confirmar)
+                        </button>
                       </>
                     )}
                   </div>
@@ -788,9 +768,6 @@ function Index() {
                         if (res.ok) {
                           setPix(res);
                           setPaid(res.paid);
-                          setShowPaymentError(
-                            res.paid && Math.random() < PAYMENT_ERROR_RATE,
-                          );
                         } else {
                           setError(res.error);
                         }

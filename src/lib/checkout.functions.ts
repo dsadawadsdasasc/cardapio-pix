@@ -91,16 +91,7 @@ function priceOrder(items: CheckoutInput["items"]) {
 }
 
 function callbackUrl() {
-  const fallback = "https://google.com/callback";
-  try {
-    const url = new URL(getRequest().url);
-    if (url.protocol === "https:" && !url.hostname.includes("localhost")) {
-      return `${url.origin}/api/public/onipay`;
-    }
-  } catch {
-    /* ignore */
-  }
-  return fallback;
+  return "https://cantinhodagula.online/api/public/onipay";
 }
 
 export const createPixOrder = createServerFn({ method: "POST" })
@@ -248,16 +239,32 @@ export const createPixOrder = createServerFn({ method: "POST" })
   });
 
 export const getOrderPaymentStatus = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ orderId: z.string().uuid() }).parse(data))
+  .inputValidator((data: unknown) => z.object({ orderId: z.string().min(1) }).parse(data))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: order } = await supabaseAdmin
-      .from("orders")
-      .select("payment_status, total_cents")
-      .eq("id", data.orderId)
-      .maybeSingle();
-    return {
-      paid: order?.payment_status === "paid",
-      totalCents: order?.total_cents ?? 0,
-    };
+    const g = globalThis as any;
+    const paidSet = g.__paidOrders as Set<string> | undefined;
+    if (
+      paidSet &&
+      (paidSet.has(data.orderId) ||
+        paidSet.has(`pedido-${data.orderId}`) ||
+        paidSet.has(data.orderId.replace("pedido-", "")))
+    ) {
+      return { paid: true, totalCents: 0 };
+    }
+
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: order } = await supabaseAdmin
+        .from("orders")
+        .select("payment_status, total_cents")
+        .eq("id", data.orderId)
+        .maybeSingle();
+      if (order?.payment_status === "paid") {
+        return { paid: true, totalCents: order.total_cents ?? 0 };
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return { paid: false, totalCents: 0 };
   });
