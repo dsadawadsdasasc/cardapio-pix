@@ -21,7 +21,7 @@ export const Route = createFileRoute("/produto/$id")({
     const item = menu.find((m) => m.id === params.id);
     const title = item ? `${item.name} | Cantinho da Gula` : "Produto | Cantinho da Gula";
     const description = item
-      ? `${item.description} Monte com adicionais e observações. Delivery em Floripa.`
+      ? `${item.description} Monte com adicionais e observações. Delivery em Florianópolis.`
       : "Produto não encontrado no cardápio do Cantinho da Gula.";
     return {
       meta: [
@@ -94,7 +94,7 @@ function ProdutoPage() {
           <div>
             <p className="font-bold leading-none">{item.name}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {category?.label} · Floripa
+              {category?.label} · Florianópolis
             </p>
           </div>
         </div>

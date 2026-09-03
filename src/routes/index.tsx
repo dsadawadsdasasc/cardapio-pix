@@ -33,9 +33,9 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Delivery em Floripa: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Entrega grátis para Floripa e região.",
+          "Delivery em Florianópolis: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Entrega grátis para Florianópolis e região.",
       },
-      { property: "og:title", content: "Cantinho da Gula | Delivery em Floripa" },
+      { property: "og:title", content: "Cantinho da Gula | Delivery em Florianópolis" },
       {
         property: "og:description",
         content:
@@ -315,7 +315,7 @@ function Index() {
               <div className="absolute inset-0 flex items-end">
                 <div className="mx-auto w-full max-w-6xl px-4 pb-4 md:pb-6">
                   <span className="inline-block rounded-full border border-border bg-card/70 px-3 py-1 text-xs font-medium uppercase tracking-widest text-accent">
-                    Horário de atendimento · Floripa
+                    Horário de atendimento · Florianópolis
                   </span>
                   <h1 className="mt-4 max-w-3xl text-3xl font-extrabold leading-tight tracking-tight md:text-6xl">
                     Xis, pizza, barca de sushi e bolo entregues na sua porta.
@@ -529,7 +529,7 @@ function Index() {
                       <div>
                         <h3 className="font-bold text-foreground">Entrega rápida</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Média de 40 minutos em Floripa e região. Entregamos seu pedido quentinho e com agilidade.
+                          Média de 40 minutos em Florianópolis e região. Entregamos seu pedido quentinho e com agilidade.
                         </p>
                       </div>
                     </div>
@@ -1023,7 +1023,7 @@ function Index() {
 
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-8 text-sm text-muted-foreground">
-          <span>© {new Date().getFullYear()} Cantinho da Gula · Floripa / SC</span>
+          <span>© {new Date().getFullYear()} Cantinho da Gula · Florianópolis / SC</span>
           <button
             type="button"
             onClick={() => setTab("vendas")}

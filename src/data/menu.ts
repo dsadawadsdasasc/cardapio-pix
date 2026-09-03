@@ -100,7 +100,7 @@ export const categories: {
   { id: "bebidas", label: "Bebidas", image: bebidasImg, blurb: "Geladas, 600ml ou 2L." },
 ];
 
-/** Preços praticados em delivery (iFood/Rappi) na região de Floripa. */
+/** Preços praticados em delivery (iFood/Rappi) na região de Florianópolis. */
 export const menu: MenuItem[] = [
   // Combos
   {
