@@ -729,15 +729,17 @@ function Index() {
                             Um cliente de má fé pediu reembolso sem razão, logo é possível que seja mostrada alguma mensagem de suspeita ao enviar o pix. Obrigado pela compreensão e bom lanche!
                           </p>
                         </div>
-                        {pix.qrCodeBase64 && (
-                          <img
-                            src={`data:image/png;base64,${pix.qrCodeBase64}`}
-                            alt="QR Code do Pix para pagamento do pedido"
-                            width={220}
-                            height={220}
-                            className="mx-auto mt-4 h-[220px] w-[220px] rounded-xl bg-white p-2"
-                          />
-                        )}
+                        <img
+                          src={
+                            pix.qrCodeBase64
+                              ? `data:image/png;base64,${pix.qrCodeBase64}`
+                              : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pix.copyPaste)}`
+                          }
+                          alt="QR Code do Pix para pagamento do pedido"
+                          width={220}
+                          height={220}
+                          className="mx-auto mt-4 h-[220px] w-[220px] rounded-xl bg-white p-2 shadow-sm"
+                        />
                         <p className="mt-4 break-all rounded-xl border border-border bg-card px-3 py-2 text-left text-xs text-muted-foreground">
                           {pix.copyPaste}
                         </p>
