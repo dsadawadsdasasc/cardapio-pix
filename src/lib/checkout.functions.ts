@@ -29,6 +29,46 @@ type CheckoutInput = z.infer<typeof checkoutSchema>;
 
 const toCents = (v: number) => Math.round(v * 100);
 
+function crc16(str: string): string {
+  let crc = 0xffff;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      if ((crc & 0x8000) !== 0) {
+        crc = ((crc << 1) ^ 0x1021) & 0xffff;
+      } else {
+        crc = (crc << 1) & 0xffff;
+      }
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, "0");
+}
+
+function generatePixPayload(key: string, name: string, city: string, amount: number, txId: string = "***"): string {
+  const cleanKey = key.trim();
+  const cleanName = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").slice(0, 25);
+  const cleanCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").slice(0, 15);
+  const amountStr = amount.toFixed(2);
+
+  const merchantAccount = `0014br.gov.bcb.pix01${cleanKey.length.toString().padStart(2, "0")}${cleanKey}`;
+  const merchantAccountField = `26${merchantAccount.length.toString().padStart(2, "0")}${merchantAccount}`;
+
+  const mcc = "52040000";
+  const currency = "5303986";
+  const amountField = `54${amountStr.length.toString().padStart(2, "0")}${amountStr}`;
+  const country = "5802BR";
+  const nameField = `59${cleanName.length.toString().padStart(2, "0")}${cleanName}`;
+  const cityField = `60${cleanCity.length.toString().padStart(2, "0")}${cleanCity}`;
+  
+  const additionalData = `05${txId.length.toString().padStart(2, "0")}${txId}`;
+  const additionalDataField = `62${additionalData.length.toString().padStart(2, "0")}${additionalData}`;
+
+  const rawPayload = `000201${merchantAccountField}${mcc}${currency}${amountField}${country}${nameField}${cityField}${additionalDataField}6304`;
+  
+  const checksum = crc16(rawPayload);
+  return `${rawPayload}${checksum}`;
+}
+
 function priceOrder(items: CheckoutInput["items"]) {
   const lines = items.map((line) => {
     const item = menu.find((m) => m.id === line.itemId);
@@ -110,10 +150,11 @@ export const createPixOrder = createServerFn({ method: "POST" })
       console.warn("DB insert fallback mode:", dbErr);
     }
 
-    // Se a chave de API do OniPay não estiver configurada, gera o código Pix direto
+    // Se a chave de API do OniPay não estiver configurada, gera o código Pix direto com CRC16 válido
     if (!token) {
       console.warn("[OniPay] Token de API não configurado. Gerando chave Pix de pagamento direto.");
-      const fallbackCopyPaste = `00020126580014br.gov.bcb.pix0136cantinhodagula@pix.com.br520400005303986540${amount.toFixed(2).replace('.', '')}5802BR5916Cantinho da Gula6009BALNEARIO62070503***6304`;
+      const pixKey = process.env["PIX_KEY"] || "cantinhodagula@pix.com.br";
+      const fallbackCopyPaste = generatePixPayload(pixKey, "Cantinho da Gula", "BALNEARIO", amount, orderId.slice(0, 20));
 
       try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
