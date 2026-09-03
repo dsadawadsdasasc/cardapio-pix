@@ -304,8 +304,7 @@ function Index() {
             [
               { id: "cardapio", label: "Cardápio" },
               { id: "pedido", label: `Meu pedido${itemCount ? ` (${itemCount})` : ""}` },
-              ...(adminAuth ? [{ id: "vendas" as const, label: "Painel Vendas 🔒" }] : []),
-            ]
+            ] as const
           ).map((t) => (
             <button
               key={t.id}
