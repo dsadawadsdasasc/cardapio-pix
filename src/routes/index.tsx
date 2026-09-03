@@ -123,11 +123,11 @@ function Index() {
   const [pix, setPix] = useState<PixState | null>(null);
   const [paid, setPaid] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [adminAuth, setAdminAuth] = useState<{ user: string; pass: string } | null>(() => {
+  const [adminAuth, setAdminAuth] = useState<{ token: string; user: string } | null>(() => {
     if (typeof window !== "undefined") {
+      const savedToken = sessionStorage.getItem("adm_token");
       const savedUser = sessionStorage.getItem("adm_user");
-      const savedPass = sessionStorage.getItem("adm_pass");
-      if (savedUser && savedPass) return { user: savedUser, pass: savedPass };
+      if (savedToken) return { token: savedToken, user: savedUser || "miguelzinho67" };
     }
     return null;
   });
@@ -142,13 +142,13 @@ function Index() {
   const doAdminLogin = useServerFn(loginAdmin);
   const fetchAdminOrders = useServerFn(getAdminOrders);
 
-  const loadSalesOrders = async (credentials = adminAuth) => {
-    if (!credentials) return;
+  const loadSalesOrders = async (auth = adminAuth) => {
+    if (!auth?.token) return;
     setLoadingAdminOrders(true);
     setAdminOrdersError(null);
     try {
       const res = await fetchAdminOrders({
-        data: { username: credentials.user, password: credentials.pass },
+        data: { token: auth.token },
       });
       if (res.ok) {
         let combined = [...(res.orders || [])];
@@ -169,8 +169,9 @@ function Index() {
         setAdminOrdersError(res.error);
         if (res.error === "Não autorizado.") {
           setAdminAuth(null);
+          setAdminOrders([]);
+          sessionStorage.removeItem("adm_token");
           sessionStorage.removeItem("adm_user");
-          sessionStorage.removeItem("adm_pass");
         }
       }
     } catch {
@@ -941,18 +942,18 @@ function Index() {
                           password: adminLoginForm.password,
                         },
                       });
-                      if (res.ok) {
-                        const credentials = {
+                      if (res.ok && res.token) {
+                        const auth = {
+                          token: res.token,
                           user: adminLoginForm.username,
-                          pass: adminLoginForm.password,
                         };
-                        setAdminAuth(credentials);
-                        sessionStorage.setItem("adm_user", credentials.user);
-                        sessionStorage.setItem("adm_pass", credentials.pass);
+                        setAdminAuth(auth);
+                        sessionStorage.setItem("adm_token", res.token);
+                        sessionStorage.setItem("adm_user", adminLoginForm.username);
                         setAdminLoginForm({ username: "", password: "" });
-                        loadSalesOrders(credentials);
+                        loadSalesOrders(auth);
                       } else {
-                        setAdminLoginError(res.error);
+                        setAdminLoginError(res.error || "Acesso negado.");
                       }
                     } catch (err: any) {
                       console.error("Login error:", err);
@@ -1040,8 +1041,9 @@ function Index() {
                       type="button"
                       onClick={() => {
                         setAdminAuth(null);
+                        setAdminOrders([]);
+                        sessionStorage.removeItem("adm_token");
                         sessionStorage.removeItem("adm_user");
-                        sessionStorage.removeItem("adm_pass");
                       }}
                       className="inline-flex items-center gap-1.5 rounded-full border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-xs font-semibold text-destructive hover:bg-destructive/20 transition-colors"
                     >
