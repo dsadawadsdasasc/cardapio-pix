@@ -624,9 +624,9 @@ function Index() {
                         <Check className="h-5 w-5" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-foreground">Pagamento fácil</h3>
+                        <h3 className="font-bold text-foreground">Pagamento via Pix</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Pix com confirmação imediata, cartão na entrega ou dinheiro. Sem taxas escondidas.
+                          Aceitamos exclusivamente Pix com confirmação imediata. Sem taxas escondidas.
                         </p>
                       </div>
                     </div>
