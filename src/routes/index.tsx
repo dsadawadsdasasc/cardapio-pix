@@ -34,7 +34,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Delivery em Balneário Camboriú: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Frete grátis acima de R$ 119,90.",
+          "Delivery em Balneário Camboriú: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Entrega grátis para Balneário e região.",
       },
       { property: "og:title", content: "Cantinho da Gula | Delivery em Balneário Camboriú" },
       {
@@ -113,7 +113,7 @@ function Index() {
 
   const itemCount = detailed.reduce((n, d) => n + d.line.qty, 0);
   const subtotal = detailed.reduce((s, d) => s + d.total, 0);
-  const shipping = subtotal === 0 || subtotal >= FREE_SHIPPING_FROM ? 0 : DELIVERY_FEE;
+  const shipping = 0;
 
   const createPix = useServerFn(createPixOrder);
   const checkStatus = useServerFn(getOrderPaymentStatus);
@@ -337,7 +337,7 @@ function Index() {
                   </p>
                   <span className="mt-3 inline-flex items-center gap-2 rounded-full border border-accent/50 bg-accent/15 px-4 py-1.5 text-sm font-bold text-accent shadow-[0_0_24px_-6px_hsl(var(--accent)/0.6)] md:text-base">
                     <Truck className="h-4 w-4" />
-                    Frete grátis acima de {formatBRL(FREE_SHIPPING_FROM)}
+                    Entrega grátis para Balneário e região
                   </span>
 
                 </div>
@@ -461,11 +461,9 @@ function Index() {
                                     Promo
                                   </span>
                                 )}
-                                {item.price >= FREE_SHIPPING_FROM && (
-                                  <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
-                                    Frete grátis
-                                  </span>
-                                )}
+                                <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+                                  Entrega grátis
+                                </span>
                               </span>
                             </span>
                             <span className="relative shrink-0">

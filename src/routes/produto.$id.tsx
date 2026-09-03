@@ -115,11 +115,9 @@ function ProdutoPage() {
         <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>
         <p className="mt-3 text-xl font-bold">{formatBRL(item.price)}</p>
 
-        {item.price >= FREE_SHIPPING_FROM && (
-          <p className="mt-3 inline-block rounded-lg bg-accent/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent">
-            Inclui frete grátis
-          </p>
-        )}
+        <p className="mt-3 inline-block rounded-lg bg-accent/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent">
+          Entrega grátis para Balneário e região
+        </p>
 
         {item.category === "combos" && (
           <div className="mt-4 rounded-xl border border-primary/40 bg-primary/10 p-4">

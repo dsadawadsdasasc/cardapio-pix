@@ -81,7 +81,7 @@ export type MenuItem = {
   image: string;
 };
 
-/** Pedidos a partir deste valor ganham frete grátis. */
+/** Entrega grátis para Balneário e região. */
 export const FREE_SHIPPING_FROM = 0;
 
 export const categories: {
@@ -220,7 +220,7 @@ export const menu: MenuItem[] = [
   { id: "beb-guarana-zero-600", name: "Guaraná Antarctica Zero 600ml", description: "Guaraná zero açúcar gelado, garrafa 600ml.", price: 7.9, category: "bebidas", image: imgGuaranaZero },
   { id: "beb-guarana-2l", name: "Guaraná Antarctica 2L", description: "Guaraná gelado, garrafa 2 litros.", price: 12.9, category: "bebidas", image: imgGuarana },
   { id: "beb-guarana-zero-2l", name: "Guaraná Antarctica Zero 2L", description: "Guaraná zero açúcar gelado, garrafa 2 litros.", price: 12.9, category: "bebidas", image: imgGuaranaZero },
-  { id: "beb-agua-600", name: "Água Mineral 600ml", description: "Água mineral sem gás gelada, 600ml.", price: 1.0, category: "bebidas", image: imgAgua },
+  { id: "beb-agua-600", name: "Água Mineral 600ml", description: "Água mineral sem gás gelada, 600ml.", price: 5.0, category: "bebidas", image: imgAgua },
   { id: "beb-agua-2l", name: "Água Mineral 2L", description: "Água mineral sem gás, garrafa 2 litros.", price: 8.9, category: "bebidas", image: imgAgua },
 ];
 

@@ -86,9 +86,8 @@ function priceOrder(items: CheckoutInput["items"]) {
   });
 
   const subtotalCents = lines.reduce((s, l) => s + l.unit_price_cents * l.qty, 0);
-  const shippingCents =
-    subtotalCents >= toCents(FREE_SHIPPING_FROM) ? 0 : toCents(DELIVERY_FEE);
-  return { lines, subtotalCents, shippingCents, totalCents: subtotalCents + shippingCents };
+  const shippingCents = 0;
+  return { lines, subtotalCents, shippingCents, totalCents: subtotalCents };
 }
 
 function callbackUrl() {
