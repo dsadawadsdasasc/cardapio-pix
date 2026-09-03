@@ -1,11 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
-import { FREE_SHIPPING_FROM, getAddons, menu } from "@/data/menu";
-
-const DELIVERY_FEE = 0;
-const PROJECT_ID = "f66dd207-fb73-4981-a30d-0072f3e43864";
+import { getAddons, menu } from "@/data/menu";
 
 const checkoutSchema = z.object({
   customerName: z.string().trim().min(2).max(80),
@@ -29,45 +25,7 @@ type CheckoutInput = z.infer<typeof checkoutSchema>;
 
 const toCents = (v: number) => Math.round(v * 100);
 
-function crc16(str: string): string {
-  let crc = 0xffff;
-  for (let i = 0; i < str.length; i++) {
-    crc ^= str.charCodeAt(i) << 8;
-    for (let j = 0; j < 8; j++) {
-      if ((crc & 0x8000) !== 0) {
-        crc = ((crc << 1) ^ 0x1021) & 0xffff;
-      } else {
-        crc = (crc << 1) & 0xffff;
-      }
-    }
-  }
-  return crc.toString(16).toUpperCase().padStart(4, "0");
-}
 
-function generatePixPayload(key: string, name: string, city: string, amount: number, txId: string = "***"): string {
-  const cleanKey = key.trim();
-  const cleanName = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").slice(0, 25);
-  const cleanCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").slice(0, 15);
-  const amountStr = amount.toFixed(2);
-
-  const merchantAccount = `0014br.gov.bcb.pix01${cleanKey.length.toString().padStart(2, "0")}${cleanKey}`;
-  const merchantAccountField = `26${merchantAccount.length.toString().padStart(2, "0")}${merchantAccount}`;
-
-  const mcc = "52040000";
-  const currency = "5303986";
-  const amountField = `54${amountStr.length.toString().padStart(2, "0")}${amountStr}`;
-  const country = "5802BR";
-  const nameField = `59${cleanName.length.toString().padStart(2, "0")}${cleanName}`;
-  const cityField = `60${cleanCity.length.toString().padStart(2, "0")}${cleanCity}`;
-  
-  const additionalData = `05${txId.length.toString().padStart(2, "0")}${txId}`;
-  const additionalDataField = `62${additionalData.length.toString().padStart(2, "0")}${additionalData}`;
-
-  const rawPayload = `000201${merchantAccountField}${mcc}${currency}${amountField}${country}${nameField}${cityField}${additionalDataField}6304`;
-  
-  const checksum = crc16(rawPayload);
-  return `${rawPayload}${checksum}`;
-}
 
 function priceOrder(items: CheckoutInput["items"]) {
   const lines = items.map((line) => {
@@ -90,31 +48,16 @@ function priceOrder(items: CheckoutInput["items"]) {
   return { lines, subtotalCents, shippingCents, totalCents: subtotalCents };
 }
 
-function callbackUrl() {
-  return "https://cantinhodagula.online/api/public/onipay";
-}
-
-export const createPixOrder = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => checkoutSchema.parse(data))
+export const registerOrder = createServerFn({ method: "POST" })
+  .validator((data: unknown) => checkoutSchema.parse(data))
   .handler(async ({ data }) => {
-    const token = process.env["ONIPAY_TOKEN_API"] || "36a96084e79738123f70dd7b610cb749";
     const { lines, subtotalCents, shippingCents, totalCents } = priceOrder(data.items);
     const amount = Number((totalCents / 100).toFixed(2));
-
-    if (amount < 10 || amount > 1000) {
-      return {
-        ok: false as const,
-        error:
-          "A OniPay aceita pedidos Pix a partir de R$ 10,00 até R$ 1.000,00. Adicione mais itens para continuar!",
-      };
-    }
-
-    let orderId = `ord_${Math.random().toString(36).substring(2, 10)}`;
+    let orderId = `wpp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-      const { data: order, error: orderError } = await supabaseAdmin
+      const { data: order } = await supabaseAdmin
         .from("orders")
         .insert({
           customer_name: data.customerName,
@@ -124,20 +67,20 @@ export const createPixOrder = createServerFn({ method: "POST" })
           subtotal_cents: subtotalCents,
           shipping_cents: shippingCents,
           total_cents: totalCents,
-          payment_provider: token ? "onipay" : "pix_direct",
+          payment_provider: "whatsapp",
+          payment_status: "whatsapp_pending",
         })
         .select("id")
         .single();
 
       if (order?.id) {
         orderId = order.id;
-        const { error: itemsError } = await supabaseAdmin
+        await supabaseAdmin
           .from("order_items")
           .insert(lines.map((l) => ({ ...l, order_id: orderId })));
-        if (itemsError) console.error("order items insert failed", itemsError);
       }
-    } catch (dbErr) {
-      console.warn("DB insert fallback mode:", dbErr);
+    } catch {
+      /* fallback */
     }
 
     // Registra o pedido no armazenamento em memória para o painel ADM
@@ -152,8 +95,8 @@ export const createPixOrder = createServerFn({ method: "POST" })
       subtotal_cents: subtotalCents,
       shipping_cents: shippingCents,
       total_cents: totalCents,
-      payment_status: "unpaid",
-      payment_provider: token ? "onipay" : "pix_direct",
+      payment_status: "whatsapp",
+      payment_provider: "whatsapp",
       created_at: new Date().toISOString(),
       paid_at: null,
       order_items: lines.map((l, idx) => ({
@@ -168,131 +111,9 @@ export const createPixOrder = createServerFn({ method: "POST" })
     };
     g.__ordersStore = [memoryOrder, ...g.__ordersStore.filter((o: any) => o.id !== orderId)];
 
-    // Se a chave de API do OniPay não estiver configurada, gera o código Pix direto com CRC16 válido
-    if (!token) {
-      console.warn("[OniPay] Token de API não configurado. Gerando chave Pix de pagamento direto.");
-      const pixKey = process.env["PIX_KEY"] || "cantinhodagula@pix.com.br";
-      const fallbackCopyPaste = generatePixPayload(pixKey, "Cantinho da Gula", "FLORIANOPOLIS", amount, orderId.slice(0, 20));
-
-      try {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        await supabaseAdmin
-          .from("orders")
-          .update({
-            pix_copy_paste: fallbackCopyPaste,
-            payment_status: "unpaid",
-          })
-          .eq("id", orderId);
-      } catch {
-        /* ignore fallback update error */
-      }
-
-      return {
-        ok: true as const,
-        orderId: orderId,
-        amount,
-        copyPaste: fallbackCopyPaste,
-        qrCodeBase64: "",
-        paid: false,
-      };
-    }
-
-    let payload: {
-      data?: {
-        id?: string;
-        pix?: { copyPaste?: string; qrCodeBase64?: string };
-        status?: string;
-      };
-      error?: { message?: string };
-    } = {};
-
-    try {
-      const res = await fetch("https://onipaybot.com.br/api/v1/deposits/", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "Idempotency-Key": `pedido-${orderId}`,
-        },
-        body: JSON.stringify({
-          amount,
-          callbackUrl: callbackUrl(),
-          externalId: orderId,
-        }),
-      });
-      payload = (await res.json().catch(() => ({}))) as typeof payload;
-      if (!res.ok) {
-        console.error("onipay error", res.status, payload?.error?.message);
-        return {
-          ok: false as const,
-          error:
-            payload?.error?.message ??
-            "A OniPay não conseguiu gerar o Pix agora. Tente novamente.",
-        };
-      }
-    } catch (err) {
-      console.error("onipay request failed", err);
-      return { ok: false as const, error: "Falha ao falar com o provedor de pagamento." };
-    }
-
-    const deposit = payload.data;
-    const copyPaste = deposit?.pix?.copyPaste ?? "";
-    if (!copyPaste) {
-      return { ok: false as const, error: "A OniPay não retornou o código Pix." };
-    }
-
-    try {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      await supabaseAdmin
-        .from("orders")
-        .update({
-          payment_reference: deposit?.id ?? null,
-          pix_copy_paste: copyPaste,
-          pix_qr_base64: deposit?.pix?.qrCodeBase64 ?? null,
-          payment_status: deposit?.status === "PAID" ? "paid" : "unpaid",
-        })
-        .eq("id", orderId);
-    } catch {
-      /* ignore db update error */
-    }
-
     return {
       ok: true as const,
-      orderId: orderId,
+      orderId,
       amount,
-      copyPaste,
-      qrCodeBase64: deposit?.pix?.qrCodeBase64 ?? "",
-      paid: deposit?.status === "PAID",
     };
-  });
-
-export const getOrderPaymentStatus = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ orderId: z.string().min(1) }).parse(data))
-  .handler(async ({ data }) => {
-    const g = globalThis as any;
-    const paidSet = g.__paidOrders as Set<string> | undefined;
-    if (
-      paidSet &&
-      (paidSet.has(data.orderId) ||
-        paidSet.has(`pedido-${data.orderId}`) ||
-        paidSet.has(data.orderId.replace("pedido-", "")))
-    ) {
-      return { paid: true, totalCents: 0 };
-    }
-
-    try {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: order } = await supabaseAdmin
-        .from("orders")
-        .select("payment_status, total_cents")
-        .eq("id", data.orderId)
-        .maybeSingle();
-      if (order?.payment_status === "paid") {
-        return { paid: true, totalCents: order.total_cents ?? 0 };
-      }
-    } catch {
-      /* ignore */
-    }
-
-    return { paid: false, totalCents: 0 };
   });

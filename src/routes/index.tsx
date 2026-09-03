@@ -1,9 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, Copy, DollarSign, Loader2, Lock, LogOut, RefreshCw, Shield, ShoppingBag, Truck } from "lucide-react";
+import { Check, Clock, DollarSign, Loader2, Lock, LogOut, MessageCircle, RefreshCw, Shield, ShoppingBag, Truck } from "lucide-react";
 import { getAdminOrders, loginAdmin } from "@/lib/admin.functions";
-
 
 import heroImg from "@/assets/hero.jpg";
 import logoImg from "@/assets/logo.png";
@@ -16,7 +15,7 @@ import {
   type MenuItem,
 } from "@/data/menu";
 import { cart, useCart } from "@/lib/cart";
-import { createPixOrder, getOrderPaymentStatus } from "@/lib/checkout.functions";
+import { registerOrder } from "@/lib/checkout.functions";
 
 
 export const Route = createFileRoute("/")({
@@ -54,12 +53,7 @@ const DELIVERY_FEE = 0;
 // Número da loja no WhatsApp (formato internacional, só dígitos).
 const WHATSAPP_NUMBER = "5547920036595";
 
-type PixState = {
-  orderId: string;
-  copyPaste: string;
-  qrCodeBase64: string;
-  paid: boolean;
-};
+
 
 
 const filters: { id: CategoryId | "todos"; label: string }[] = [
@@ -115,14 +109,9 @@ function Index() {
   const subtotal = detailed.reduce((s, d) => s + d.total, 0);
   const shipping = 0;
 
-  const createPix = useServerFn(createPixOrder);
-  const checkStatus = useServerFn(getOrderPaymentStatus);
   const [form, setForm] = useState({ name: "", phone: "", address: "", notes: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pix, setPix] = useState<PixState | null>(null);
-  const [paid, setPaid] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [adminAuth, setAdminAuth] = useState<{ token: string; user: string } | null>(() => {
     if (typeof window !== "undefined") {
       const savedToken = sessionStorage.getItem("adm_token");
@@ -187,20 +176,7 @@ function Index() {
     }
   }, [tab, adminAuth]);
 
-  useEffect(() => {
-    if (!pix || paid) return;
-    const id = window.setInterval(async () => {
-      try {
-        const res = await checkStatus({ data: { orderId: pix.orderId } });
-        if (res.paid) {
-          setPaid(true);
-        }
-      } catch {
-        /* tenta de novo no próximo intervalo */
-      }
-    }, 2500);
-    return () => window.clearInterval(id);
-  }, [pix, paid, checkStatus]);
+
 
 
   const whatsappHref = useMemo(() => {
@@ -673,237 +649,103 @@ function Index() {
                   + Adicionar mais itens
                 </button>
 
-                {pix ? (
-                  <div className="mt-5 rounded-2xl border border-accent/50 bg-accent/5 p-5 text-center">
-                    {paid ? (
-                      <>
-                        <Check className="mx-auto h-10 w-10 text-accent" />
-                        <h3 className="mt-2 text-lg font-bold text-accent">Pagamento confirmado!</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Já estamos preparando seu pedido. Pedido nº{" "}
-                          {pix.orderId.slice(0, 8)}.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            lines.forEach((l) => cart.remove(l.lineId));
-                            setPix(null);
-                            setPaid(false);
-                            setTab("cardapio");
-                          }}
-                          className="mt-4 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
-                        >
-                          Fazer novo pedido
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <h3 className="text-lg font-bold">Pague com Pix</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Escaneie o QR Code ou use o copia e cola. A confirmação é
-                          automática.
-                        </p>
-                        <img
-                          src={
-                            pix.qrCodeBase64
-                              ? `data:image/png;base64,${pix.qrCodeBase64}`
-                              : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pix.copyPaste)}`
-                          }
-                          alt="QR Code do Pix para pagamento do pedido"
-                          width={220}
-                          height={220}
-                          className="mx-auto mt-4 h-[220px] w-[220px] rounded-xl bg-white p-2 shadow-sm"
-                        />
-                        <p className="mt-4 break-all rounded-xl border border-border bg-card px-3 py-2 text-left text-xs text-muted-foreground">
-                          {pix.copyPaste}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await navigator.clipboard.writeText(pix.copyPaste);
-                            setCopied(true);
-                            setTimeout(() => setCopied(false), 2000);
-                          }}
-                          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground"
-                        >
-                          {copied ? (
-                            <Check className="h-4 w-4" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                          {copied ? "Código copiado" : "Copiar código Pix"}
-                        </button>
-                        <p className="mt-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Aguardando confirmação do pagamento…
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaid(true);
-                            if (typeof window !== "undefined" && pix?.orderId) {
-                              try {
-                                const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
-                                const updated = list.map((o: any) =>
-                                  o.id === pix.orderId
-                                    ? { ...o, payment_status: "paid", paid_at: new Date().toISOString() }
-                                    : o,
-                                );
-                                localStorage.setItem("cantinho_orders", JSON.stringify(updated));
-                              } catch {}
-                            }
-                          }}
-                          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-accent/60 bg-accent/15 px-6 py-2.5 text-xs font-bold text-accent hover:bg-accent/25 transition-colors"
-                        >
-                          <Check className="h-4 w-4" />
-                          Já realizei o pagamento (Confirmar)
-                        </button>
-                      </>
-                    )}
+                <div className="mt-6 border-t border-border pt-6">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#25D366]/20 text-[#25D366]">
+                      <MessageCircle className="h-4 w-4 fill-current" />
+                    </span>
+                    <h3 className="text-base font-bold text-foreground">Finalizar pelo WhatsApp</h3>
                   </div>
-                ) : (
-                  <form
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      setError(null);
-                      setSubmitting(true);
-                      try {
-                        const res = await createPix({
-                          data: {
-                            customerName: form.name,
-                            customerPhone: form.phone,
-                            address: form.address,
-                            notes: form.notes,
-                            items: lines.map((l) => ({
-                              itemId: l.itemId,
-                              qty: l.qty,
-                              addonIds: l.addonIds,
-                              notes: l.notes,
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Preencha seus dados para enviar o pedido pronto para o nosso atendente:
+                  </p>
+
+                  <div className="mt-4 grid gap-3">
+                    <label className="block text-sm">
+                      <span className="text-muted-foreground font-medium">Seu Nome</span>
+                      <input
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-[#25D366]"
+                        placeholder="Ex: João da Silva"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-muted-foreground font-medium">WhatsApp / Celular</span>
+                      <input
+                        inputMode="tel"
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-[#25D366]"
+                        placeholder="(48) 90000-0000"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-muted-foreground font-medium">Endereço de Entrega</span>
+                      <input
+                        value={form.address}
+                        onChange={(e) => setForm({ ...form, address: e.target.value })}
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-[#25D366]"
+                        placeholder="Rua, número, bairro e complemento"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-muted-foreground font-medium">Observações do pedido (opcional)</span>
+                      <input
+                        value={form.notes}
+                        onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-[#25D366]"
+                        placeholder="Ex: Sem cebola, troco para 50, etc."
+                      />
+                    </label>
+                  </div>
+
+                  {/* BOTAO DESTACADO DO WHATSAPP */}
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        try {
+                          const localOrder = {
+                            id: `wpp_${Date.now()}`,
+                            customer_name: form.name.trim() || "Cliente WhatsApp",
+                            customer_phone: form.phone.trim() || "-",
+                            address: form.address.trim() || "A combinar no WhatsApp",
+                            notes: form.notes.trim() || null,
+                            subtotal_cents: Math.round(subtotal * 100),
+                            shipping_cents: 0,
+                            total_cents: Math.round(subtotal * 100),
+                            payment_status: "whatsapp",
+                            payment_provider: "whatsapp",
+                            created_at: new Date().toISOString(),
+                            paid_at: null,
+                            order_items: detailed.map((d, i) => ({
+                              id: `item_${i}_${Date.now()}`,
+                              item_id: d.item.id,
+                              item_name: d.item.name,
+                              qty: d.line.qty,
+                              unit_price_cents: Math.round((d.total / d.line.qty) * 100),
+                              addons: d.addons,
+                              notes: d.line.notes || null,
                             })),
-                          },
-                        });
-                        if (res.ok) {
-                          setPix(res);
-                          setPaid(res.paid);
-                          if (typeof window !== "undefined") {
-                            try {
-                              const localOrder = {
-                                id: res.orderId,
-                                customer_name: form.name,
-                                customer_phone: form.phone,
-                                address: form.address,
-                                notes: form.notes || null,
-                                subtotal_cents: Math.round(subtotal * 100),
-                                shipping_cents: 0,
-                                total_cents: Math.round(subtotal * 100),
-                                payment_status: res.paid ? "paid" : "unpaid",
-                                payment_provider: "onipay",
-                                created_at: new Date().toISOString(),
-                                paid_at: res.paid ? new Date().toISOString() : null,
-                                order_items: detailed.map((d, i) => ({
-                                  id: `item_${i}_${Date.now()}`,
-                                  item_id: d.item.id,
-                                  item_name: d.item.name,
-                                  qty: d.line.qty,
-                                  unit_price_cents: Math.round((d.total / d.line.qty) * 100),
-                                  addons: d.addons,
-                                  notes: d.line.notes || null,
-                                })),
-                              };
-                              const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
-                              localStorage.setItem("cantinho_orders", JSON.stringify([localOrder, ...list.filter((o: any) => o.id !== res.orderId)].slice(0, 50)));
-                            } catch {}
-                          }
-                        } else {
-                          setError(res.error);
-                        }
-                      } catch {
-                        setError("Não foi possível gerar o Pix. Tente novamente.");
-                      } finally {
-                        setSubmitting(false);
+                          };
+                          const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+                          localStorage.setItem("cantinho_orders", JSON.stringify([localOrder, ...list].slice(0, 50)));
+                        } catch {}
                       }
                     }}
-                    className="mt-5 border-t border-border pt-5"
+                    className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white py-4 px-6 text-base md:text-lg font-black tracking-wide shadow-xl shadow-[#25D366]/30 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
                   >
-                    <h3 className="text-base font-bold">Finalizar pedido pelo site</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Pague com Pix agora e a confirmação é automática.
-                    </p>
-                    <div className="mt-4 grid gap-3">
-                      <label className="block text-sm">
-                        <span className="text-muted-foreground">Nome</span>
-                        <input
-                          required
-                          minLength={2}
-                          value={form.name}
-                          onChange={(e) => setForm({ ...form, name: e.target.value })}
-                          className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
-                          placeholder="Seu nome completo"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="text-muted-foreground">WhatsApp / telefone</span>
-                        <input
-                          required
-                          minLength={8}
-                          inputMode="tel"
-                          value={form.phone}
-                          onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                          className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
-                          placeholder="(47) 90000-0000"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="text-muted-foreground">Endereço de entrega</span>
-                        <input
-                          required
-                          minLength={6}
-                          value={form.address}
-                          onChange={(e) => setForm({ ...form, address: e.target.value })}
-                          className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
-                          placeholder="Rua, número, bairro e complemento"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        <span className="text-muted-foreground">
-                          Observações (opcional)
-                        </span>
-                        <input
-                          value={form.notes}
-                          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                          className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
-                          placeholder="Ponto de referência, troco, etc."
-                        />
-                      </label>
-                    </div>
+                    <MessageCircle className="h-6 w-6 fill-current shrink-0" />
+                    Finalizar Pedido pelo WhatsApp · {formatBRL(subtotal + shipping)}
+                  </a>
 
-                    {error && (
-                      <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                        {error}
-                      </p>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
-                    >
-                      {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                      {submitting
-                        ? "Gerando Pix…"
-                        : `Pagar com Pix · ${formatBRL(subtotal + shipping)}`}
-                    </button>
-
-                    <a
-                      href={whatsappHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-3 block text-center text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
-                    >
-                      ou finalizar pelo WhatsApp
-                    </a>
-                  </form>
-                )}
+                  <p className="mt-3 text-center text-xs text-muted-foreground">
+                    ⚡ Ao clicar, o WhatsApp abrirá com sua lista de itens e endereço já prontos!
+                  </p>
+                </div>
 
               </div>
             )}
@@ -1205,14 +1047,14 @@ function Index() {
         <button
           type="button"
           onClick={() => setTab(tab === "pedido" ? "cardapio" : "pedido")}
-          className="fixed inset-x-3 bottom-3 z-30 flex items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-primary-foreground shadow-lg sm:mx-auto sm:max-w-md"
+          className="fixed inset-x-3 bottom-3 z-30 flex items-center justify-between gap-3 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] px-4 py-3.5 text-white shadow-xl shadow-emerald-950/40 sm:mx-auto sm:max-w-md transition-all active:scale-[0.98]"
         >
-          <span className="text-sm font-semibold">
-            {itemCount} {itemCount === 1 ? "item" : "itens"} ·{" "}
-            {formatBRL(subtotal + shipping)}
+          <span className="flex items-center gap-2 text-sm font-bold">
+            <MessageCircle className="h-5 w-5 fill-current" />
+            {itemCount} {itemCount === 1 ? "item" : "itens"} · {formatBRL(subtotal + shipping)}
           </span>
-          <span className="text-sm font-bold underline underline-offset-4">
-            {tab === "pedido" ? "Continuar comprando" : "Ver pedido"}
+          <span className="text-sm font-black underline underline-offset-4">
+            {tab === "pedido" ? "Continuar comprando" : "Finalizar pelo WhatsApp"}
           </span>
         </button>
       )}
