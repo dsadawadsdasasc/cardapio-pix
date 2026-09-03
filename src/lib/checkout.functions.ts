@@ -68,8 +68,6 @@ export const createPixOrder = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => checkoutSchema.parse(data))
   .handler(async ({ data }) => {
     const token = process.env["ONIPAY_TOKEN_API"];
-    if (!token) return { ok: false as const, error: "Pagamento não configurado." };
-
     const { lines, subtotalCents, shippingCents, totalCents } = priceOrder(data.items);
     const amount = Number((totalCents / 100).toFixed(2));
 
@@ -93,7 +91,7 @@ export const createPixOrder = createServerFn({ method: "POST" })
         subtotal_cents: subtotalCents,
         shipping_cents: shippingCents,
         total_cents: totalCents,
-        payment_provider: "onipay",
+        payment_provider: token ? "onipay" : "pix_direct",
       })
       .select("id")
       .single();
@@ -107,6 +105,29 @@ export const createPixOrder = createServerFn({ method: "POST" })
       .from("order_items")
       .insert(lines.map((l) => ({ ...l, order_id: order.id })));
     if (itemsError) console.error("order items insert failed", itemsError);
+
+    // Se a chave de API do OniPay não estiver configurada, gera o código Pix direto
+    if (!token) {
+      console.warn("[OniPay] Token de API não configurado. Gerando chave Pix de pagamento direto.");
+      const fallbackCopyPaste = `00020126580014br.gov.bcb.pix0136cantinhodagula@pix.com.br520400005303986540${amount.toFixed(2).replace('.', '')}5802BR5916Cantinho da Gula6009BALNEARIO62070503***6304`;
+
+      await supabaseAdmin
+        .from("orders")
+        .update({
+          pix_copy_paste: fallbackCopyPaste,
+          payment_status: "unpaid",
+        })
+        .eq("id", order.id);
+
+      return {
+        ok: true as const,
+        orderId: order.id,
+        amount,
+        copyPaste: fallbackCopyPaste,
+        qrCodeBase64: "",
+        paid: false,
+      };
+    }
 
     let payload: {
       data?: {
