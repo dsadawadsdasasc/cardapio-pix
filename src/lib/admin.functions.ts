@@ -235,16 +235,68 @@ export const generateAdminPix = createServerFn({ method: "POST" })
       const copyPaste = deposit?.pix?.copyPaste ?? "";
       const qrCodeBase64 = deposit?.pix?.qrCodeBase64 ?? "";
 
-      if (!copyPaste) {
-        return { ok: false as const, error: "A OniPay não retornou o código Pix." };
+      const depositId = deposit?.id ?? externalId;
+      const isPaid = deposit?.status === "PAID";
+
+      const createdOrder = {
+        id: depositId,
+        customer_name: "Cobrança Pix (ADM)",
+        customer_phone: "-",
+        address: "Cobrança gerada no painel OniPay",
+        notes: `Cobrança Pix de R$ ${amount.toFixed(2)} gerada manualmente`,
+        subtotal_cents: Math.round(amount * 100),
+        shipping_cents: 0,
+        total_cents: Math.round(amount * 100),
+        payment_status: isPaid ? "paid" : "unpaid",
+        payment_provider: "onipay",
+        created_at: new Date().toISOString(),
+        paid_at: isPaid ? new Date().toISOString() : null,
+        pix_copy_paste: copyPaste,
+        pix_qr_base64: qrCodeBase64,
+        order_items: [
+          {
+            id: `item_${Date.now()}`,
+            item_id: "pix_onipay",
+            item_name: `Cobrança Pix OniPay`,
+            qty: 1,
+            unit_price_cents: Math.round(amount * 100),
+            addons: [],
+            notes: null,
+          },
+        ],
+      };
+
+      const g = globalThis as any;
+      g.__ordersStore = g.__ordersStore || [];
+      g.__ordersStore = [createdOrder, ...g.__ordersStore.filter((o: any) => o.id !== depositId)];
+
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await supabaseAdmin.from("orders").insert({
+          id: depositId,
+          customer_name: createdOrder.customer_name,
+          customer_phone: createdOrder.customer_phone,
+          address: createdOrder.address,
+          notes: createdOrder.notes,
+          subtotal_cents: createdOrder.subtotal_cents,
+          shipping_cents: createdOrder.shipping_cents,
+          total_cents: createdOrder.total_cents,
+          payment_status: createdOrder.payment_status,
+          payment_provider: createdOrder.payment_provider,
+          pix_copy_paste: copyPaste,
+          pix_qr_base64: qrCodeBase64,
+        });
+      } catch {
+        /* fallback ignore */
       }
 
       return {
         ok: true as const,
-        depositId: deposit?.id ?? externalId,
+        depositId,
         amount,
         copyPaste,
         qrCodeBase64,
+        status: isPaid ? ("paid" as const) : ("unpaid" as const),
       };
     } catch (err: any) {
       return { ok: false as const, error: `Falha de conexão com a OniPay: ${err?.message || err}` };

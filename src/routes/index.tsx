@@ -953,6 +953,40 @@ function Index() {
                         });
                         if (res.ok) {
                           setGenPixResult(res);
+                          const generatedOrder = {
+                            id: res.depositId,
+                            customer_name: "Cobrança Pix (ADM)",
+                            customer_phone: "-",
+                            address: "Cobrança avulsa OniPay",
+                            notes: `Cobrança Pix gerada no painel ADM`,
+                            subtotal_cents: Math.round(res.amount * 100),
+                            shipping_cents: 0,
+                            total_cents: Math.round(res.amount * 100),
+                            payment_status: res.status === "paid" ? "paid" : "unpaid",
+                            payment_provider: "onipay",
+                            created_at: new Date().toISOString(),
+                            paid_at: res.status === "paid" ? new Date().toISOString() : null,
+                            pix_copy_paste: res.copyPaste,
+                            pix_qr_base64: res.qrCodeBase64,
+                            order_items: [
+                              {
+                                id: `item_${Date.now()}`,
+                                item_id: "pix_onipay",
+                                item_name: `Cobrança Pix OniPay`,
+                                qty: 1,
+                                unit_price_cents: Math.round(res.amount * 100),
+                                addons: [],
+                                notes: null,
+                              },
+                            ],
+                          };
+                          setAdminOrders((prev) => [generatedOrder, ...prev.filter((o) => o.id !== generatedOrder.id)]);
+                          if (typeof window !== "undefined") {
+                            try {
+                              const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+                              localStorage.setItem("cantinho_orders", JSON.stringify([generatedOrder, ...list].slice(0, 50)));
+                            } catch {}
+                          }
                         } else {
                           setGenPixError(res.error || "Não foi possível gerar o código Pix.");
                         }
@@ -1086,6 +1120,7 @@ function Index() {
                           timeStyle: "medium",
                         });
                         const isPaid = order.payment_status === "paid";
+                        const isWhatsApp = order.payment_status === "whatsapp" || order.payment_provider === "whatsapp";
 
                         return (
                           <div
@@ -1106,10 +1141,12 @@ function Index() {
                                 className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
                                   isPaid
                                     ? "bg-accent/15 text-accent border border-accent/30"
+                                    : isWhatsApp
+                                    ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
                                     : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
                                 }`}
                               >
-                                {isPaid ? "✓ Pix Pago" : "⏳ Pagamento Pendente"}
+                                {isPaid ? "✓ Pix Pago" : isWhatsApp ? "💬 WhatsApp" : "⏳ Pix Pendente"}
                               </span>
                             </div>
 
@@ -1168,6 +1205,30 @@ function Index() {
                                 Total: {formatBRL(order.total_cents / 100)}
                               </span>
                             </div>
+
+                            {order.pix_copy_paste && (
+                              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-secondary/40 p-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Código Pix Copia e Cola (OniPay)
+                                  </p>
+                                  <p className="text-xs font-mono text-foreground truncate mt-0.5">
+                                    {order.pix_copy_paste}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await navigator.clipboard.writeText(order.pix_copy_paste);
+                                    alert("Código Pix copiado para a área de transferência!");
+                                  }}
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:opacity-90 transition-opacity shrink-0"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                  Copiar Pix
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
