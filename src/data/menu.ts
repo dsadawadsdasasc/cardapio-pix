@@ -81,7 +81,7 @@ export type MenuItem = {
   image: string;
 };
 
-/** Entrega grátis para Balneário e região. */
+/** Entrega grátis para Floripa e região. */
 export const FREE_SHIPPING_FROM = 0;
 
 export const categories: {
@@ -100,7 +100,7 @@ export const categories: {
   { id: "bebidas", label: "Bebidas", image: bebidasImg, blurb: "Geladas, 600ml ou 2L." },
 ];
 
-/** Preços praticados em delivery (iFood/Rappi) na região de Balneário Camboriú. */
+/** Preços praticados em delivery (iFood/Rappi) na região de Floripa / Florianópolis. */
 export const menu: MenuItem[] = [
   // Combos
   {

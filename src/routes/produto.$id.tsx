@@ -21,7 +21,7 @@ export const Route = createFileRoute("/produto/$id")({
     const item = menu.find((m) => m.id === params.id);
     const title = item ? `${item.name} | Cantinho da Gula` : "Produto | Cantinho da Gula";
     const description = item
-      ? `${item.description} Monte com adicionais e observações. Delivery em Balneário Camboriú.`
+      ? `${item.description} Monte com adicionais e observações. Delivery em Florianópolis.`
       : "Produto não encontrado no cardápio do Cantinho da Gula.";
     return {
       meta: [
@@ -94,7 +94,7 @@ function ProdutoPage() {
           <div>
             <p className="font-bold leading-none">{item.name}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {category?.label} · Balneário Camboriú
+              {category?.label} · Florianópolis
             </p>
           </div>
         </div>
@@ -116,7 +116,7 @@ function ProdutoPage() {
         <p className="mt-3 text-xl font-bold">{formatBRL(item.price)}</p>
 
         <p className="mt-3 inline-block rounded-lg bg-accent/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent">
-          Entrega grátis para Balneário e região
+          Entrega grátis para Floripa e região
         </p>
 
         {item.category === "combos" && (

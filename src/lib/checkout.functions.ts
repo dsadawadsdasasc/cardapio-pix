@@ -172,7 +172,7 @@ export const createPixOrder = createServerFn({ method: "POST" })
     if (!token) {
       console.warn("[OniPay] Token de API não configurado. Gerando chave Pix de pagamento direto.");
       const pixKey = process.env["PIX_KEY"] || "cantinhodagula@pix.com.br";
-      const fallbackCopyPaste = generatePixPayload(pixKey, "Cantinho da Gula", "BALNEARIO", amount, orderId.slice(0, 20));
+      const fallbackCopyPaste = generatePixPayload(pixKey, "Cantinho da Gula", "FLORIANOPOLIS", amount, orderId.slice(0, 20));
 
       try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

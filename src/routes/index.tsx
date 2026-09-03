@@ -34,9 +34,9 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Delivery em Balneário Camboriú: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Entrega grátis para Balneário e região.",
+          "Delivery em Florianópolis: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Entrega grátis para Floripa e região.",
       },
-      { property: "og:title", content: "Cantinho da Gula | Delivery em Balneário Camboriú" },
+      { property: "og:title", content: "Cantinho da Gula | Delivery em Florianópolis" },
       {
         property: "og:description",
         content:
@@ -339,7 +339,7 @@ function Index() {
               <div className="absolute inset-0 flex items-end">
                 <div className="mx-auto w-full max-w-6xl px-4 pb-4 md:pb-6">
                   <span className="inline-block rounded-full border border-border bg-card/70 px-3 py-1 text-xs font-medium uppercase tracking-widest text-accent">
-                    Horário de atendimento · Balneário Camboriú
+                    Horário de atendimento · Florianópolis
                   </span>
                   <h1 className="mt-4 max-w-3xl text-3xl font-extrabold leading-tight tracking-tight md:text-6xl">
                     Xis, pizza, barca de sushi e bolo entregues na sua porta.
@@ -349,7 +349,7 @@ function Index() {
                   </p>
                   <span className="mt-3 inline-flex items-center gap-2 rounded-full border border-accent/50 bg-accent/15 px-4 py-1.5 text-sm font-bold text-accent shadow-[0_0_24px_-6px_hsl(var(--accent)/0.6)] md:text-base">
                     <Truck className="h-4 w-4" />
-                    Entrega grátis para Balneário e região
+                    Entrega grátis para Floripa e região
                   </span>
 
                 </div>
@@ -553,7 +553,7 @@ function Index() {
                       <div>
                         <h3 className="font-bold text-foreground">Entrega rápida</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Média de 40 minutos em Balneário Camboriú e região. Entregamos seu pedido quentinho e com agilidade.
+                          Média de 40 minutos em Florianópolis e região. Entregamos seu pedido quentinho e com agilidade.
                         </p>
                       </div>
                     </div>
@@ -1191,7 +1191,7 @@ function Index() {
 
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-8 text-sm text-muted-foreground">
-          <span>© {new Date().getFullYear()} Cantinho da Gula · Balneário Camboriú / SC</span>
+          <span>© {new Date().getFullYear()} Cantinho da Gula · Florianópolis / SC</span>
           <button
             type="button"
             onClick={() => setTab("vendas")}

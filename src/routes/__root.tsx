@@ -72,7 +72,7 @@ export const Route = createRootRouteWithContext()({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Cantinho da Gula | Delivery em Balneário Camboriú" },
+      { title: "Cantinho da Gula | Delivery em Florianópolis" },
       { name: "description", content: "Cardápio online Cantinho da Gula" },
       { name: "author", content: "Cantinho da Gula" },
       { property: "og:title", content: "Cantinho da Gula" },
