@@ -1353,15 +1353,21 @@ function Index() {
 
       {/* Botão flutuante do WhatsApp no canto inferior direito */}
       <a
-        href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Olá! Gostaria de fazer um pedido.")}`}
+        href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre o cardápio.")}`}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Falar no WhatsApp"
-        className={`fixed right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-2xl shadow-emerald-950/50 transition-all duration-300 hover:scale-110 active:scale-95 ${
+        className={`fixed right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-[0_4px_20px_rgba(37,211,102,0.6)] transition-all duration-300 hover:scale-110 active:scale-95 ${
           itemCount > 0 ? "bottom-20 sm:bottom-6 sm:right-6" : "bottom-6 sm:right-6"
         }`}
       >
-        <MessageCircle className="h-7 w-7 fill-current" />
+        <svg
+          className="h-8 w-8 fill-current"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.461c-1.826 0-3.623-.49-5.197-1.42l-.372-.222-3.863 1.012 1.03-3.765-.244-.388a10.02 10.02 0 01-1.537-5.32c0-5.526 4.498-10.024 10.024-10.024 2.677 0 5.196 1.043 7.087 2.935 1.89 1.89 2.932 4.41 2.932 7.089 0 5.527-4.497 10.025-10.022 10.025m0-18.423c-6.196 0-11.236 5.04-11.236 11.236 0 2.113.585 4.148 1.69 5.897L.5 24.5l4.248-1.114a11.2 11.2 0 005.776 1.583h.005c6.195 0 11.235-5.04 11.235-11.237 0-3.001-1.168-5.823-3.29-7.946-2.122-2.122-4.944-3.29-7.945-3.29" />
+        </svg>
         <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
