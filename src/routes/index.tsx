@@ -406,8 +406,8 @@ function Index() {
                   <p className="mt-3 max-w-xl text-sm text-muted-foreground md:text-lg">
                     Confira nossos horários de funcionamento e faça seu pedido online.
                   </p>
-                  <span className="mt-3 inline-flex items-center gap-2 rounded-full border border-accent/50 bg-accent/15 px-4 py-1.5 text-sm font-bold text-accent shadow-[0_0_24px_-6px_hsl(var(--accent)/0.6)] md:text-base">
-                    <Truck className="h-4 w-4" />
+                  <span className="mt-3 inline-flex items-center gap-2 rounded-full border border-border bg-secondary/60 px-3.5 py-1 text-xs font-medium text-muted-foreground">
+                    <Truck className="h-3.5 w-3.5 text-muted-foreground" />
                     Entrega grátis para Floripa e região
                   </span>
 
@@ -532,8 +532,8 @@ function Index() {
                                     Promo
                                   </span>
                                 )}
-                                <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
-                                  Entrega grátis
+                                <span className="text-[10px] font-medium text-muted-foreground">
+                                  · Entrega grátis
                                 </span>
                               </span>
                             </span>

@@ -108,7 +108,7 @@ export const menu: MenuItem[] = [
     name: "Combo Casal",
     description:
       "2 Xis à sua escolha + 2 porções de fritas + 2 refrigerantes 600ml. Serve 2 pessoas.",
-    price: 89.9,
+    price: 64.9,
     category: "combos",
     image: imgComboCasal,
   },
@@ -117,7 +117,7 @@ export const menu: MenuItem[] = [
     name: "Combo Pizza Dupla + Fritas + Coca 2L",
     description:
       "2 pizzas grandes à sua escolha + 1 porção de fritas crocantes + Coca-Cola 2L. Serve 4 pessoas.",
-    price: 99.9,
+    price: 74.9,
     category: "combos",
     image: imgComboPizzaDupla,
   },
@@ -126,7 +126,7 @@ export const menu: MenuItem[] = [
     name: "Combo Açaí Família",
     description:
       "1 açaí de 1L + 2 açaís de 500ml + 2 fatias de bolo de chocolate. Serve 4 pessoas.",
-    price: 99.9,
+    price: 74.9,
     category: "combos",
     image: imgComboAcaiFamilia,
   },
@@ -135,7 +135,7 @@ export const menu: MenuItem[] = [
     name: "Combo Burger Festa",
     description:
       "4 hambúrgueres à sua escolha + 4 porções de fritas + onion rings + 2 refrigerantes 2L. Serve 4 pessoas.",
-    price: 139.9,
+    price: 114.9,
     category: "combos",
     image: imgComboBurgerFesta,
   },
@@ -144,7 +144,7 @@ export const menu: MenuItem[] = [
     name: "Combo da Galera",
     description:
       "4 Xis à sua escolha + 4 porções de fritas + 2 refrigerantes 2L + 1 açaí de 1L. Serve até 6 pessoas.",
-    price: 119.9,
+    price: 94.9,
     category: "combos",
     image: imgComboGalera,
   },
@@ -153,7 +153,7 @@ export const menu: MenuItem[] = [
     name: "Combo Barca Completa",
     description:
       "Barca de 40 peças + 8 hot rolls extras + 2 refrigerantes 600ml. Serve 3 pessoas.",
-    price: 149.9,
+    price: 124.9,
     category: "combos",
     image: imgComboSushi,
   },
@@ -162,7 +162,7 @@ export const menu: MenuItem[] = [
     name: "Combo Mega Família",
     description:
       "2 pizzas grandes + 4 Xis + 2 refrigerantes 2L + 1 bolo inteiro. Serve até 8 pessoas.",
-    price: 149.9,
+    price: 124.9,
     category: "combos",
     image: imgComboMega,
   },

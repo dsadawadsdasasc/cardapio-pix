@@ -115,8 +115,8 @@ function ProdutoPage() {
         <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>
         <p className="mt-3 text-xl font-bold">{formatBRL(item.price)}</p>
 
-        <p className="mt-3 inline-block rounded-lg bg-accent/15 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent">
-          Entrega grátis para Floripa e região
+        <p className="mt-2 text-xs font-medium text-muted-foreground">
+          🛵 Entrega grátis para Floripa e região
         </p>
 
         {item.category === "combos" && (
