@@ -49,7 +49,7 @@ function ProdutoPage() {
   const [addonIds, setAddonIds] = useState<string[]>(existing?.addonIds ?? []);
   const [notes, setNotes] = useState(existing?.notes ?? "");
 
-  const IS_SITE_OFFLINE = true;
+  const IS_SITE_OFFLINE = false;
 
   if (IS_SITE_OFFLINE) {
     return (
