@@ -629,10 +629,11 @@ function Index() {
                     </div>
                     <div className="flex-1">
                       <p className="text-xs font-medium text-muted-foreground">
-                        Horário de atendimento
+                        Status do atendimento
                       </p>
-                      <h3 className="text-lg font-bold text-foreground">
-                        Horário específico
+                      <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                        <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
+                        Aberto agora
                       </h3>
 
                       <div className="mt-5 space-y-2.5">
