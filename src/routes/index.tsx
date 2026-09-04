@@ -379,8 +379,8 @@ function Index() {
                 Cantinho <span className="text-primary">da Gula</span>
               </span>
               <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-                Horário de atendimento
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                Aberto agora
               </span>
             </div>
           </button>
@@ -452,8 +452,12 @@ function Index() {
               <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/20" />
               <div className="absolute inset-0 flex items-end">
                 <div className="mx-auto w-full max-w-6xl px-4 pb-4 md:pb-6">
-                  <span className="inline-block rounded-full border border-border bg-card/70 px-3 py-1 text-xs font-medium uppercase tracking-widest text-accent">
-                    Horário de atendimento · Florianópolis
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1 text-xs font-medium uppercase tracking-widest text-accent">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    </span>
+                    Aberto agora
                   </span>
                   <h1 className="mt-4 max-w-3xl text-3xl font-extrabold leading-tight tracking-tight md:text-6xl">
                     Xis, pizza, barca de sushi e bolo entregues na sua porta.
