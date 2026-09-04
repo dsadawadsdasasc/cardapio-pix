@@ -1144,14 +1144,20 @@ function Index() {
 
                       {/* Botões de atalho de valor */}
                       <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
-                        {[10, 20, 30, 50, 100].map((val) => (
+                        {[
+                          { label: "+R$ 20", formatted: "20,00" },
+                          { label: "+R$ 30", formatted: "30,00" },
+                          { label: "+R$ 50", formatted: "50,00" },
+                          { label: "+R$ 100", formatted: "100,00" },
+                          { label: "+R$ 99,90", formatted: "99,90" },
+                        ].map((opt) => (
                           <button
-                            key={val}
+                            key={opt.label}
                             type="button"
-                            onClick={() => setGenPixAmount(val.toFixed(2).replace(".", ","))}
+                            onClick={() => setGenPixAmount(opt.formatted)}
                             className="rounded-lg border border-border bg-secondary/60 px-2.5 py-2 text-xs font-semibold hover:bg-secondary hover:text-foreground transition-colors"
                           >
-                            +R$ {val}
+                            {opt.label}
                           </button>
                         ))}
                       </div>
@@ -1392,7 +1398,7 @@ function Index() {
           <button
             type="button"
             onClick={() => setTab("vendas")}
-            className="h-1.5 w-1.5 rounded-full bg-accent/40 transition-colors hover:bg-accent"
+            className="h-3.5 w-3.5 rounded-full bg-orange-500 hover:bg-orange-400 shadow-sm transition-all hover:scale-125 active:scale-95 cursor-pointer"
             aria-label="Acesso administrativo"
           />
         </div>
