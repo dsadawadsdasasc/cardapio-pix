@@ -2,6 +2,9 @@
   "name": "cardapio-pix",
   "compatibility_date": "2026-08-31",
   "main": ".output/server/index.mjs",
+  "build": {
+    "command": "npm run build"
+  },
   "assets": {
     "binding": "ASSETS",
     "directory": ".output/public"
