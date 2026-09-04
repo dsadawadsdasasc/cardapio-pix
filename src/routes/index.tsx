@@ -299,6 +299,61 @@ function Index() {
 
 
 
+  const IS_SITE_OFFLINE = true;
+
+  if (IS_SITE_OFFLINE && tab !== "admin") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
+        <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 shadow-2xl">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <svg
+              className="h-10 w-10"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+
+          <span className="mt-6 inline-block rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-500 uppercase tracking-wider">
+            ● Temporariamente Indisponível
+          </span>
+
+          <h1 className="mt-3 text-2xl font-black text-foreground sm:text-3xl">
+            Página Fora do Ar
+          </h1>
+
+          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+            Estamos realizando ajustes técnicos no momento. O cardápio online e os pedidos voltarão em breve.
+          </p>
+
+          <div className="mt-6 border-t border-border pt-5">
+            <p className="text-xs text-muted-foreground">
+              Dúvidas ou atendimento direto:
+            </p>
+            <a
+              href={`https://wa.me/${WHATSAPP_NUMBER}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#20bd5a] transition-all hover:scale-105 active:scale-95"
+            >
+              WhatsApp da Loja
+            </a>
+          </div>
+        </div>
+
+        <div className="mt-8 text-xs text-muted-foreground/50">
+          <Link to="/" search={{ tab: "admin" }} className="hover:text-muted-foreground transition-colors">
+            Acesso Administrativo
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-24 text-foreground">
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">

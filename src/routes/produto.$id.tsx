@@ -49,6 +49,36 @@ function ProdutoPage() {
   const [addonIds, setAddonIds] = useState<string[]>(existing?.addonIds ?? []);
   const [notes, setNotes] = useState(existing?.notes ?? "");
 
+  const IS_SITE_OFFLINE = true;
+
+  if (IS_SITE_OFFLINE) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
+        <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 shadow-2xl">
+          <span className="inline-block rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-500 uppercase tracking-wider">
+            ● Temporariamente Indisponível
+          </span>
+          <h1 className="mt-3 text-2xl font-black text-foreground sm:text-3xl">
+            Página Fora do Ar
+          </h1>
+          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+            Estamos realizando ajustes no cardápio no momento. Voltaremos em breve!
+          </p>
+          <div className="mt-6 border-t border-border pt-5">
+            <a
+              href="https://wa.me/5547920036595"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-[#20bd5a] transition-all"
+            >
+              Falar no WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!item) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
