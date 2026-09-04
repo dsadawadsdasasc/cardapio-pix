@@ -26,6 +26,8 @@ export const Route = createFileRoute("/")({
         ? ("pedido" as const)
         : search["tab"] === "vendas"
         ? ("vendas" as const)
+        : search["tab"] === "admin"
+        ? ("admin" as const)
         : ("cardapio" as const),
   }),
   head: () => ({
@@ -95,8 +97,8 @@ function getSavedAdminAuth(): { token: string; user: string } | null {
     if (!token && document.cookie) {
       const matchToken = document.cookie.match(/adm_token=([^;]+)/);
       const matchUser = document.cookie.match(/adm_user=([^;]+)/);
-      if (matchToken) token = decodeURIComponent(matchToken[1]);
-      if (matchUser) user = decodeURIComponent(matchUser[1]);
+      if (matchToken && matchToken[1]) token = decodeURIComponent(matchToken[1]);
+      if (matchUser && matchUser[1]) user = decodeURIComponent(matchUser[1]);
     }
 
     if (token) {
@@ -118,7 +120,7 @@ function Index() {
   const [active, setActive] = useState<CategoryId | "todos">("todos");
   const lines = useCart();
 
-  const setTab = (next: "cardapio" | "pedido" | "vendas") =>
+  const setTab = (next: "cardapio" | "pedido" | "vendas" | "admin") =>
     navigate({ to: "/", search: { tab: next } });
 
   const groups = useMemo(
@@ -478,6 +480,7 @@ function Index() {
               <Link
                 to="/produto/$id"
                 params={{ id: "combo-pizza-dupla" }}
+                search={{ line: undefined }}
                 className="group relative block overflow-hidden rounded-3xl border-2 border-primary/60 bg-card shadow-[0_0_35px_-8px_hsl(var(--primary)/0.4)] transition-all duration-300 hover:border-primary active:scale-[0.99]"
               >
                 <div className="absolute top-3 left-3 z-20 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-background/90 px-3.5 py-1 text-xs font-black uppercase tracking-wider text-primary shadow-lg backdrop-blur">

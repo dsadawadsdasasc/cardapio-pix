@@ -75,6 +75,7 @@ async function verifySessionToken(token?: string | null): Promise<boolean> {
   const parts = token.split(".");
   if (parts.length !== 2) return false;
   const [b64, signature] = parts;
+  if (!b64 || !signature) return false;
   const expectedSig = await sha256Hex(`${b64}:${SERVER_SECRET_SALT}`);
   if (!constantTimeCompare(signature, expectedSig)) return false;
   try {
