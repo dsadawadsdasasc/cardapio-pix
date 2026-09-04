@@ -13,6 +13,7 @@ import imgComboSushi from "@/assets/prod/combo-sushi.jpg";
 import imgComboAcaiFamilia from "@/assets/prod/combo-acai-familia.jpg";
 import imgComboGalera from "@/assets/prod/combo-galera.jpg";
 import imgComboMega from "@/assets/prod/combo-mega.jpg";
+import imgComboDoisBurgao from "@/assets/prod/combo-dois-burgao.jpg";
 
 import imgXisSalada from "@/assets/prod/xis-salada.jpg";
 import imgXisCoracao from "@/assets/prod/xis-coracao.jpg";
@@ -103,6 +104,15 @@ export const categories: {
 /** Preços praticados em delivery (iFood/Rappi) na região de Florianópolis. */
 export const menu: MenuItem[] = [
   // Combos
+  {
+    id: "combo-dois-burgao",
+    name: "Combo Dois Burgão",
+    description:
+      "2 hambúrgueres + 2 porções de batatas fritas + 2 refrigerantes 600ml + 1 copo de açaí de 500ml. Serve 2 pessoas.",
+    price: 44.9,
+    category: "combos",
+    image: imgComboDoisBurgao,
+  },
   {
     id: "combo-casal",
     name: "Combo Casal",
