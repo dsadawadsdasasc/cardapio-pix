@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, Copy, DollarSign, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Trash2, Truck } from "lucide-react";
-import { deleteAdminOrder, generateAdminPix, getAdminOrders, loginAdmin } from "@/lib/admin.functions";
+import { Check, Clock, Copy, DollarSign, Globe, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Trash2, Truck } from "lucide-react";
+import { deleteAdminOrder, generateAdminPix, getAdminOrders, loginAdmin, updateAdminOrderStatus } from "@/lib/admin.functions";
 
 import heroImg from "@/assets/hero.jpg";
 import logoImg from "@/assets/logo.png";
@@ -64,23 +64,34 @@ const filters: { id: CategoryId | "todos"; label: string }[] = [
   ...categories.map((c) => ({ id: c.id, label: c.label })),
 ];
 
-function saveAdminAuth(token: string, user: string) {
+function saveAdminAuth(token: string, user: string, pass?: string) {
   if (typeof window === "undefined") return;
   try {
+    const sessionObj = {
+      token,
+      user,
+      pass: pass || "",
+      approved: true,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem("cantinho_admin_session", JSON.stringify(sessionObj));
     localStorage.setItem("adm_token", token);
     localStorage.setItem("adm_user", user);
+    if (pass) localStorage.setItem("adm_pass", pass);
     sessionStorage.setItem("adm_token", token);
     sessionStorage.setItem("adm_user", user);
-    document.cookie = `adm_token=${encodeURIComponent(token)}; max-age=31536000; path=/; SameSite=Lax`;
-    document.cookie = `adm_user=${encodeURIComponent(user)}; max-age=31536000; path=/; SameSite=Lax`;
+    document.cookie = `adm_token=${encodeURIComponent(token)}; max-age=315360000; path=/; SameSite=Lax`;
+    document.cookie = `adm_user=${encodeURIComponent(user)}; max-age=315360000; path=/; SameSite=Lax`;
   } catch {}
 }
 
 function clearAdminAuth() {
   if (typeof window === "undefined") return;
   try {
+    localStorage.removeItem("cantinho_admin_session");
     localStorage.removeItem("adm_token");
     localStorage.removeItem("adm_user");
+    localStorage.removeItem("adm_pass");
     sessionStorage.removeItem("adm_token");
     sessionStorage.removeItem("adm_user");
     document.cookie = "adm_token=; max-age=0; path=/";
@@ -88,11 +99,19 @@ function clearAdminAuth() {
   } catch {}
 }
 
-function getSavedAdminAuth(): { token: string; user: string } | null {
+function getSavedAdminAuth(): { token: string; user: string; pass?: string } | null {
   if (typeof window === "undefined") return null;
   try {
+    const raw = localStorage.getItem("cantinho_admin_session");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.token) {
+        return { token: parsed.token, user: parsed.user || "miguelzinho67", pass: parsed.pass };
+      }
+    }
     let token = localStorage.getItem("adm_token") || sessionStorage.getItem("adm_token");
     let user = localStorage.getItem("adm_user") || sessionStorage.getItem("adm_user");
+    let pass = localStorage.getItem("adm_pass") || undefined;
 
     if (!token && document.cookie) {
       const matchToken = document.cookie.match(/adm_token=([^;]+)/);
@@ -102,7 +121,7 @@ function getSavedAdminAuth(): { token: string; user: string } | null {
     }
 
     if (token) {
-      return { token, user: user || "miguelzinho67" };
+      return { token, user: user || "miguelzinho67", pass };
     }
   } catch {}
   return null;
@@ -166,13 +185,83 @@ function Index() {
   const [adminOrders, setAdminOrders] = useState<any[]>([]);
   const [loadingAdminOrders, setLoadingAdminOrders] = useState(false);
   const [adminOrdersError, setAdminOrdersError] = useState<string | null>(null);
+  const [clientIp, setClientIp] = useState<string>("");
 
   const doAdminLogin = useServerFn(loginAdmin);
   const fetchAdminOrders = useServerFn(getAdminOrders);
   const doGeneratePix = useServerFn(generateAdminPix);
   const doDeleteOrder = useServerFn(deleteAdminOrder);
+  const doUpdateOrderStatus = useServerFn(updateAdminOrderStatus);
+  const doRegisterOrder = useServerFn(registerOrder);
 
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+
+  // Auto-aprovação imediata: se já logou como admin no passado, aprova na hora
+  useEffect(() => {
+    const saved = getSavedAdminAuth();
+    if (saved) {
+      setAdminAuth({ token: saved.token, user: saved.user });
+      if (saved.user && saved.pass) {
+        setAdminLoginForm({ username: saved.user, password: saved.pass });
+      }
+    }
+    // Captura IP público da máquina do usuário
+    if (typeof window !== "undefined") {
+      fetch("/api/my-ip")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.ip) setClientIp(d.ip);
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  const isOrderPaid = (o: any) =>
+    o.payment_status === "paid" ||
+    o.status === "paid" ||
+    o.status === "PAID" ||
+    (o.paid_at !== null && o.paid_at !== undefined);
+
+  const parseIpFromNotes = (notes?: string | null) => {
+    if (!notes) return null;
+    const match = notes.match(/\[IP:\s*([^\]]+)\]/);
+    return match ? match[1] : null;
+  };
+
+  const handleApproveOrder = async (orderId: string) => {
+    if (!adminAuth?.token) return;
+    setUpdatingOrderId(orderId);
+    try {
+      const res = await doUpdateOrderStatus({
+        data: {
+          token: adminAuth.token,
+          orderId,
+          paymentStatus: "paid",
+        },
+      });
+      if (res.ok) {
+        setAdminOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  payment_status: "paid",
+                  status: "confirmed",
+                  paid_at: res.paidAt || new Date().toISOString(),
+                }
+              : o,
+          ),
+        );
+      } else {
+        alert(res.error || "Não foi possível aprovar o pagamento.");
+      }
+    } catch {
+      alert("Erro ao comunicar aprovação de pagamento.");
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
 
   const handleDeleteOrder = async (orderId: string) => {
     if (!adminAuth?.token) return;
@@ -213,6 +302,7 @@ function Index() {
     amount: number;
     copyPaste: string;
     qrCodeBase64: string;
+    clientIp?: string;
   } | null>(null);
   const [genPixCopied, setGenPixCopied] = useState(false);
 
@@ -240,13 +330,31 @@ function Index() {
         }
         setAdminOrders(combined);
       } else {
-        setAdminOrdersError(res.error);
         if (res.error === "Não autorizado.") {
+          // Tenta renovar a autenticação silenciosamente com as credenciais salvas antes de desconectar
+          const saved = getSavedAdminAuth();
+          if (saved?.user && saved?.pass) {
+            try {
+              const reloginRes = await doAdminLogin({
+                data: { username: saved.user, password: saved.pass },
+              });
+              if (reloginRes.ok && reloginRes.token) {
+                const newAuth = { token: reloginRes.token, user: saved.user };
+                setAdminAuth(newAuth);
+                saveAdminAuth(reloginRes.token, saved.user, saved.pass);
+                const retryRes = await fetchAdminOrders({ data: { token: reloginRes.token } });
+                if (retryRes.ok) {
+                  setAdminOrders(retryRes.orders || []);
+                  return;
+                }
+              }
+            } catch {}
+          }
           setAdminAuth(null);
           setAdminOrders([]);
-          sessionStorage.removeItem("adm_token");
-          sessionStorage.removeItem("adm_user");
+          clearAdminAuth();
         }
+        setAdminOrdersError(res.error);
       }
     } catch {
       setAdminOrdersError("Falha de conexão ao buscar vendas.");
@@ -842,6 +950,7 @@ function Index() {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => {
+                      const clientIpDetected = clientIp || "127.0.0.1";
                       if (typeof window !== "undefined") {
                         try {
                           const localOrder = {
@@ -850,6 +959,7 @@ function Index() {
                             customer_phone: form.phone.trim() || "-",
                             address: form.address.trim() || "A combinar no WhatsApp",
                             notes: form.notes.trim() || null,
+                            client_ip: clientIpDetected,
                             subtotal_cents: Math.round(subtotal * 100),
                             shipping_cents: 0,
                             total_cents: Math.round(subtotal * 100),
@@ -870,6 +980,23 @@ function Index() {
                           const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
                           localStorage.setItem("cantinho_orders", JSON.stringify([localOrder, ...list].slice(0, 50)));
                         } catch {}
+                      }
+                      if (detailed.length > 0) {
+                        doRegisterOrder({
+                          data: {
+                            customerName: form.name.trim() || "Cliente WhatsApp",
+                            customerPhone: form.phone.trim() || "-",
+                            address: form.address.trim() || "A combinar no WhatsApp",
+                            notes: form.notes.trim() || "",
+                            clientIp: clientIpDetected,
+                            items: detailed.map((d) => ({
+                              itemId: d.item.id,
+                              qty: d.line.qty,
+                              addonIds: d.addons.map((a) => a.id),
+                              notes: d.line.notes || "",
+                            })),
+                          },
+                        }).catch(() => {});
                       }
                       trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
                       trackPixelEvent("Lead", { value: subtotal, currency: "BRL" });
@@ -918,7 +1045,7 @@ function Index() {
                           user: adminLoginForm.username,
                         };
                         setAdminAuth(auth);
-                        saveAdminAuth(res.token, adminLoginForm.username);
+                        saveAdminAuth(res.token, adminLoginForm.username, adminLoginForm.password);
                         setAdminLoginForm({ username: "", password: "" });
                         loadSalesOrders(auth);
                       } else {
@@ -1024,11 +1151,16 @@ function Index() {
                 {/* Métricas do Painel */}
                 <div className="mt-6 grid gap-4 sm:grid-cols-3">
                   <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-                    <p className="text-xs font-medium text-muted-foreground">Total em Vendas</p>
+                    <p className="text-xs font-medium text-muted-foreground">Total em Vendas (Apenas Aprovadas)</p>
                     <p className="mt-1.5 text-2xl font-extrabold text-accent">
                       {formatBRL(
-                        adminOrders.reduce((sum, o) => sum + (o.total_cents || 0), 0) / 100,
+                        adminOrders
+                          .filter(isOrderPaid)
+                          .reduce((sum, o) => sum + (o.total_cents || 0), 0) / 100,
                       )}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Contabilizando somente pagamentos confirmados
                     </p>
                   </div>
 
@@ -1037,12 +1169,18 @@ function Index() {
                     <p className="mt-1.5 text-2xl font-extrabold text-foreground">
                       {adminOrders.length}
                     </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {adminOrders.filter(isOrderPaid).length} pagos · {adminOrders.filter((o) => !isOrderPaid(o)).length} pendentes
+                    </p>
                   </div>
 
                   <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                     <p className="text-xs font-medium text-muted-foreground">Pedidos Pagos (Pix)</p>
-                    <p className="mt-1.5 text-2xl font-extrabold text-primary">
-                      {adminOrders.filter((o) => o.payment_status === "paid").length}
+                    <p className="mt-1.5 text-2xl font-extrabold text-emerald-500">
+                      {adminOrders.filter(isOrderPaid).length}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Pagamento aprovado com sucesso
                     </p>
                   </div>
                 </div>
@@ -1087,6 +1225,7 @@ function Index() {
                             customer_phone: "-",
                             address: "Cobrança avulsa OniPay",
                             notes: `Cobrança Pix gerada no painel ADM`,
+                            client_ip: res.clientIp || clientIp || "127.0.0.1",
                             subtotal_cents: Math.round(res.amount * 100),
                             shipping_cents: 0,
                             total_cents: Math.round(res.amount * 100),
@@ -1186,37 +1325,38 @@ function Index() {
                         <h4 className="text-base font-bold">Código Pix OniPay Gerado com Sucesso!</h4>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Valor: <strong className="text-foreground">{formatBRL(genPixResult.amount)}</strong> · Ref: {genPixResult.depositId}
+                        Valor gerado: <strong className="text-foreground">{formatBRL(genPixResult.amount)}</strong>
                       </p>
 
-                      {genPixResult.qrCodeBase64 ? (
-                        <img
-                          src={`data:image/png;base64,${genPixResult.qrCodeBase64}`}
-                          alt="QR Code Pix OniPay"
-                          width={200}
-                          height={200}
-                          className="mx-auto mt-4 h-[200px] w-[200px] rounded-xl bg-white p-2 shadow-sm"
-                        />
-                      ) : (
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(genPixResult.copyPaste)}`}
-                          alt="QR Code Pix OniPay"
-                          width={200}
-                          height={200}
-                          className="mx-auto mt-4 h-[200px] w-[200px] rounded-xl bg-white p-2 shadow-sm"
-                        />
+                      {genPixResult.qrCodeBase64 && (
+                        <div className="mt-4 flex justify-center">
+                          <img
+                            src={
+                              genPixResult.qrCodeBase64.startsWith("data:")
+                                ? genPixResult.qrCodeBase64
+                                : `data:image/png;base64,${genPixResult.qrCodeBase64}`
+                            }
+                            alt="QR Code Pix"
+                            className="h-48 w-48 rounded-xl border border-border bg-white p-2 shadow-sm"
+                          />
+                        </div>
                       )}
 
                       <div className="mt-4">
-                        <p className="break-all rounded-xl border border-border bg-card p-3 text-left text-xs font-mono text-muted-foreground select-all">
-                          {genPixResult.copyPaste}
-                        </p>
+                        <p className="text-xs font-semibold text-muted-foreground">Chave Pix Copia e Cola:</p>
+                        <div className="mx-auto mt-1 max-w-md overflow-hidden rounded-xl border border-border bg-background p-2.5">
+                          <p className="font-mono text-xs break-all text-foreground select-all">
+                            {genPixResult.copyPaste}
+                          </p>
+                        </div>
                         <button
                           type="button"
                           onClick={async () => {
-                            await navigator.clipboard.writeText(genPixResult.copyPaste);
-                            setGenPixCopied(true);
-                            setTimeout(() => setGenPixCopied(false), 2000);
+                            if (genPixResult.copyPaste) {
+                              await navigator.clipboard.writeText(genPixResult.copyPaste);
+                              setGenPixCopied(true);
+                              setTimeout(() => setGenPixCopied(false), 3000);
+                            }
                           }}
                           className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-xs font-bold transition-all"
                         >
@@ -1253,7 +1393,7 @@ function Index() {
                           dateStyle: "short",
                           timeStyle: "medium",
                         });
-                        const isPaid = order.payment_status === "paid";
+                        const isPaid = isOrderPaid(order);
                         const isWhatsApp = order.payment_status === "whatsapp" || order.payment_provider === "whatsapp";
 
                         return (
@@ -1275,14 +1415,31 @@ function Index() {
                                 <span
                                   className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
                                     isPaid
-                                      ? "bg-accent/15 text-accent border border-accent/30"
-                                      : isWhatsApp
                                       ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
+                                      : isWhatsApp
+                                      ? "bg-sky-500/15 text-sky-400 border border-sky-500/30"
                                       : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
                                   }`}
                                 >
                                   {isPaid ? "✓ Pix Pago" : isWhatsApp ? "💬 WhatsApp" : "⏳ Pix Pendente"}
                                 </span>
+
+                                {!isPaid && (
+                                  <button
+                                    type="button"
+                                    disabled={updatingOrderId === order.id}
+                                    onClick={() => handleApproveOrder(order.id)}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-500 hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
+                                    title="Aprovar pagamento e contabilizar em vendas"
+                                  >
+                                    {updatingOrderId === order.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Check className="h-3.5 w-3.5" />
+                                    )}
+                                    Aprovar
+                                  </button>
+                                )}
 
                                 <button
                                   type="button"
@@ -1320,6 +1477,15 @@ function Index() {
                                     Obs: “{order.notes}”
                                   </p>
                                 )}
+                                <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-secondary/80 px-2.5 py-1 text-xs text-muted-foreground border border-border/50">
+                                  <Globe className="h-3.5 w-3.5 text-primary shrink-0" />
+                                  <span>
+                                    IP do cliente:{" "}
+                                    <strong className="font-mono text-foreground font-semibold">
+                                      {order.client_ip || parseIpFromNotes(order.notes) || "127.0.0.1"}
+                                    </strong>
+                                  </span>
+                                </div>
                               </div>
 
                               <div>

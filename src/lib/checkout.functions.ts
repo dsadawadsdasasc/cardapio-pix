@@ -8,6 +8,7 @@ const checkoutSchema = z.object({
   customerPhone: z.string().trim().min(8).max(30),
   address: z.string().trim().min(6).max(200),
   notes: z.string().trim().max(300).optional().default(""),
+  clientIp: z.string().optional(),
   items: z
     .array(
       z.object({
@@ -24,8 +25,6 @@ const checkoutSchema = z.object({
 type CheckoutInput = z.infer<typeof checkoutSchema>;
 
 const toCents = (v: number) => Math.round(v * 100);
-
-
 
 function priceOrder(items: CheckoutInput["items"]) {
   const lines = items.map((line) => {
@@ -55,6 +54,10 @@ export const registerOrder = createServerFn({ method: "POST" })
     const amount = Number((totalCents / 100).toFixed(2));
     let orderId = `wpp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
+    const g = globalThis as any;
+    const clientIp = data.clientIp || g.__lastClientIp || "127.0.0.1";
+    const notesWithIp = `${data.notes ? data.notes + " | " : ""}[IP: ${clientIp}]`;
+
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: order } = await supabaseAdmin
@@ -63,7 +66,7 @@ export const registerOrder = createServerFn({ method: "POST" })
           customer_name: data.customerName,
           customer_phone: data.customerPhone,
           address: data.address,
-          notes: data.notes || null,
+          notes: notesWithIp,
           subtotal_cents: subtotalCents,
           shipping_cents: shippingCents,
           total_cents: totalCents,
@@ -84,7 +87,6 @@ export const registerOrder = createServerFn({ method: "POST" })
     }
 
     // Registra o pedido no armazenamento em memória para o painel ADM
-    const g = globalThis as any;
     g.__ordersStore = g.__ordersStore || [];
     const memoryOrder = {
       id: orderId,
@@ -92,6 +94,7 @@ export const registerOrder = createServerFn({ method: "POST" })
       customer_phone: data.customerPhone,
       address: data.address,
       notes: data.notes || null,
+      client_ip: clientIp,
       subtotal_cents: subtotalCents,
       shipping_cents: shippingCents,
       total_cents: totalCents,
