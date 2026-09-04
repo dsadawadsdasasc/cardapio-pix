@@ -463,7 +463,7 @@ function Index() {
                     Xis, pizza, barca de sushi e bolo entregues na sua porta.
                   </h1>
                   <p className="mt-3 max-w-xl text-sm text-muted-foreground md:text-lg">
-                    Confira nossos horários de funcionamento e faça seu pedido online.
+                    Aberto agora 24h! Faça seu pedido online e receba com entrega rápida.
                   </p>
                   <span className="mt-3 inline-flex items-center gap-2 rounded-full border border-border bg-secondary/60 px-3.5 py-1 text-xs font-medium text-muted-foreground">
                     <Truck className="h-3.5 w-3.5 text-muted-foreground" />
@@ -638,13 +638,13 @@ function Index() {
 
                       <div className="mt-5 space-y-2.5">
                         {[
-                          { day: "Domingo", hours: "13:00 - 04:00" },
-                          { day: "Segunda-Feira", hours: "13:00 - 00:00" },
-                          { day: "Terça-Feira", hours: "13:00 - 00:00" },
-                          { day: "Quarta-Feira", hours: "13:00 - 00:00" },
-                          { day: "Quinta-Feira", hours: "13:00 - 00:00" },
-                          { day: "Sexta-Feira", hours: "12:00 - 04:00" },
-                          { day: "Sábado", hours: "12:00 - 04:00" },
+                          { day: "Domingo", hours: "Aberto agora (24h)" },
+                          { day: "Segunda-Feira", hours: "Aberto agora (24h)" },
+                          { day: "Terça-Feira", hours: "Aberto agora (24h)" },
+                          { day: "Quarta-Feira", hours: "Aberto agora (24h)" },
+                          { day: "Quinta-Feira", hours: "Aberto agora (24h)" },
+                          { day: "Sexta-Feira", hours: "Aberto agora (24h)" },
+                          { day: "Sábado", hours: "Aberto agora (24h)" },
                         ].map((item) => (
                           <div
                             key={item.day}
@@ -653,7 +653,7 @@ function Index() {
                             <span className="font-medium text-foreground">
                               {item.day}
                             </span>
-                            <span className="tabular-nums text-muted-foreground">
+                            <span className="tabular-nums font-semibold text-emerald-500">
                               {item.hours}
                             </span>
                           </div>

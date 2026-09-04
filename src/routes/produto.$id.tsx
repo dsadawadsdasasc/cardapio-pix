@@ -123,8 +123,11 @@ function ProdutoPage() {
           </Link>
           <div>
             <p className="font-bold leading-none">{item.name}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {category?.label} · Florianópolis
+            <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1.5">
+              <span>{category?.label}</span>
+              <span>·</span>
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+              <span className="text-emerald-500 font-semibold">Aberto agora</span>
             </p>
           </div>
         </div>
