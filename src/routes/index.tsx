@@ -1343,9 +1343,9 @@ function Index() {
                       <QrCode className="h-5 w-5" />
                     </span>
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">Gerar Código Pix (AkadPay)</h3>
+                      <h3 className="text-lg font-bold text-foreground">Gerar Código Pix</h3>
                       <p className="text-xs text-muted-foreground">
-                        Gere uma cobrança Pix instantânea com o valor desejado usando a API AkadPay.
+                        Gere uma cobrança Pix instantânea com o valor desejado.
                       </p>
                     </div>
                   </div>
@@ -1357,7 +1357,7 @@ function Index() {
                       setGenPixResult(null);
                       const num = parseFloat(genPixAmount.replace(",", "."));
                       if (isNaN(num) || num < 5) {
-                        setGenPixError("Informe um valor válido de no mínimo R$ 5,00 (mínimo AkadPay).");
+                        setGenPixError("Informe um valor válido de no mínimo R$ 5,00.");
                         return;
                       }
                       setGenPixSubmitting(true);
@@ -1409,7 +1409,7 @@ function Index() {
                           setGenPixError(res.error || "Não foi possível gerar o código Pix.");
                         }
                       } catch (err: any) {
-                        setGenPixError(err?.message || "Erro de conexão ao comunicar com a AkadPay.");
+                        setGenPixError(err?.message || "Erro de conexão ao gerar o Pix.");
                       } finally {
                         setGenPixSubmitting(false);
                       }
@@ -1455,10 +1455,10 @@ function Index() {
                       <button
                         type="submit"
                         disabled={genPixSubmitting}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60 shrink-0"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60 shrink-0 cursor-pointer"
                       >
                         {genPixSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                        {genPixSubmitting ? "Gerando Pix..." : "Gerar Código Pix AkadPay"}
+                        {genPixSubmitting ? "Gerando Pix..." : "Gerar Código Pix"}
                       </button>
                     </div>
 
@@ -1473,7 +1473,7 @@ function Index() {
                     <div className="mt-6 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center">
                       <div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400">
                         <Check className="h-5 w-5" />
-                        <h4 className="text-base font-bold">Código Pix AkadPay Gerado com Sucesso!</h4>
+                        <h4 className="text-base font-bold">Código Pix Gerado com Sucesso!</h4>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Valor gerado: <strong className="text-foreground">{formatBRL(genPixResult.amount)}</strong>
@@ -1572,15 +1572,7 @@ function Index() {
                                       : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
                                   }`}
                                 >
-                                  {isPaid
-                                    ? order.payment_provider === "akadpay"
-                                      ? "✓ Pix Pago (AkadPay)"
-                                      : "✓ Pix Pago"
-                                    : isWhatsApp
-                                    ? "💬 WhatsApp"
-                                    : order.payment_provider === "akadpay"
-                                    ? "⚡ Pix AkadPay (Pendente)"
-                                    : "⏳ Pix Pendente"}
+                                  {isPaid ? "✓ Pix Pago" : isWhatsApp ? "💬 WhatsApp" : "⏳ Pix Pendente"}
                                 </span>
 
                                 {!isPaid && (
