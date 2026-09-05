@@ -232,66 +232,75 @@ export const generateAdminPix = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Não autorizado." };
     }
 
-    const token = process.env["ONIPAY_TOKEN_API"] || "36a96084e79738123f70dd7b610cb749";
-    const externalId = `adm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const akadToken = process.env["AKADPAY_TOKEN"] || "ci_leandro_7539cf2b-30c9-4603-a38f-6dff97e73e0e";
+    const akadSecret = process.env["AKADPAY_SECRET"] || "cs_leandro_0a09284e-5317-41fe-adca-2a35a0e00dfc";
     const amount = Number(data.amount.toFixed(2));
 
+    if (amount < 5) {
+      return {
+        ok: false as const,
+        error: "O valor mínimo para gerar Pix na AkadPay é de R$ 5,00.",
+      };
+    }
+
     try {
-      const res = await fetch("https://onipaybot.com.br/api/v1/deposits/", {
+      const res = await fetch("https://painel.akadpay.com.br/api/wallet/deposit/payment", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          "Idempotency-Key": `adm-pix-${externalId}`,
         },
         body: JSON.stringify({
+          token: akadToken,
+          secret: akadSecret,
           amount,
-          callbackUrl: "https://cantinhodagula.online/api/public/onipay",
-          externalId,
+          debtor_name: "Administrador Cantinho",
+          email: "contato@cantinhodagula.online",
+          debtor_document_number: "00000000000",
+          phone: "47920036595",
+          method_pay: "pix",
+          postback: "https://cantinhodagula.online/api/public/akadpay",
         }),
       });
 
       const payload = (await res.json().catch(() => ({}))) as any;
 
-      if (!res.ok) {
+      if (!res.ok || payload?.status === "error" || !payload?.qrcode) {
         return {
           ok: false as const,
-          error: payload?.error?.message ?? `Erro OniPay (${res.status}): Não foi possível gerar o código Pix.`,
+          error: payload?.message ?? `Erro AkadPay (${res.status}): Não foi possível gerar o código Pix.`,
         };
       }
 
-      const deposit = payload.data;
-      const copyPaste = deposit?.pix?.copyPaste ?? "";
-      const qrCodeBase64 = deposit?.pix?.qrCodeBase64 ?? "";
-
-      const depositId = deposit?.id ?? externalId;
-      const isPaid = deposit?.status === "PAID";
+      const depositId = payload.idTransaction || `akad_${Date.now()}`;
+      const copyPaste = payload.qrcode ?? "";
+      const qrCodeImage = payload.qr_code_image_url ?? "";
+      const isPaid = false;
 
       const g = globalThis as any;
       const clientIp = g.__lastClientIp || "127.0.0.1";
-      const notesWithIp = `Cobrança Pix de R$ ${amount.toFixed(2)} gerada manualmente [IP: ${clientIp}]`;
+      const notesWithIp = `Cobrança Pix de R$ ${amount.toFixed(2)} gerada no painel AkadPay [IP: ${clientIp}]`;
 
       const createdOrder = {
         id: depositId,
-        customer_name: "Cobrança Pix (ADM)",
+        customer_name: "Cobrança Pix (AkadPay)",
         customer_phone: "-",
-        address: "Cobrança gerada no painel OniPay",
+        address: "Cobrança gerada no painel AkadPay",
         notes: notesWithIp,
         client_ip: clientIp,
         subtotal_cents: Math.round(amount * 100),
         shipping_cents: 0,
         total_cents: Math.round(amount * 100),
         payment_status: isPaid ? "paid" : "unpaid",
-        payment_provider: "onipay",
+        payment_provider: "akadpay",
         created_at: new Date().toISOString(),
         paid_at: isPaid ? new Date().toISOString() : null,
         pix_copy_paste: copyPaste,
-        pix_qr_base64: qrCodeBase64,
+        pix_qr_base64: qrCodeImage,
         order_items: [
           {
             id: `item_${Date.now()}`,
-            item_id: "pix_onipay",
-            item_name: `Cobrança Pix OniPay`,
+            item_id: "pix_akadpay",
+            item_name: `Cobrança Pix AkadPay`,
             qty: 1,
             unit_price_cents: Math.round(amount * 100),
             addons: [],
@@ -317,7 +326,7 @@ export const generateAdminPix = createServerFn({ method: "POST" })
           payment_status: createdOrder.payment_status,
           payment_provider: createdOrder.payment_provider,
           pix_copy_paste: copyPaste,
-          pix_qr_base64: qrCodeBase64,
+          pix_qr_base64: qrCodeImage,
         });
       } catch {
         /* fallback ignore */
@@ -328,12 +337,12 @@ export const generateAdminPix = createServerFn({ method: "POST" })
         depositId,
         amount,
         copyPaste,
-        qrCodeBase64,
+        qrCodeBase64: qrCodeImage,
         clientIp,
-        status: isPaid ? ("paid" as const) : ("unpaid" as const),
+        status: "unpaid" as const,
       };
     } catch (err: any) {
-      return { ok: false as const, error: `Falha de conexão com a OniPay: ${err?.message || err}` };
+      return { ok: false as const, error: `Falha de conexão com a AkadPay: ${err?.message || err}` };
     }
   });
 

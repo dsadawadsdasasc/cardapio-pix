@@ -67,6 +67,111 @@ export default {
         });
       }
 
+      // Endpoint para checagem em tempo real do status de um pedido
+      if (url.pathname === "/api/check-order-status") {
+        const orderId = url.searchParams.get("id");
+        const g = globalThis as any;
+        let isPaid = false;
+        if (orderId && Array.isArray(g.__ordersStore)) {
+          const found = g.__ordersStore.find(
+            (o: any) => o.id === orderId || o.payment_reference === orderId,
+          );
+          if (
+            found &&
+            (found.payment_status === "paid" ||
+              found.status === "confirmed" ||
+              found.status === "paid" ||
+              found.paid_at)
+          ) {
+            isPaid = true;
+          }
+        }
+        if (!isPaid && orderId) {
+          try {
+            const { supabaseAdmin } = await import("./integrations/supabase/client.server");
+            const { data } = await supabaseAdmin
+              .from("orders")
+              .select("payment_status, status, paid_at")
+              .or(`id.eq.${orderId},payment_reference.eq.${orderId}`)
+              .maybeSingle();
+            if (
+              data &&
+              (data.payment_status === "paid" ||
+                data.status === "confirmed" ||
+                data.status === "paid" ||
+                data.paid_at)
+            ) {
+              isPaid = true;
+            }
+          } catch {}
+        }
+        return new Response(JSON.stringify({ paid: isPaid, orderId }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "access-control-allow-origin": "*",
+            "cache-control": "no-store",
+          },
+        });
+      }
+
+      // Webhook automático da AkadPay
+      if (
+        request.method === "POST" &&
+        (url.pathname === "/api/public/akadpay" || url.pathname === "/api/webhook/akadpay")
+      ) {
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          const depositId =
+            body?.idTransaction ||
+            body?.data?.idTransaction ||
+            body?.id ||
+            body?.data?.id ||
+            body?.externalId;
+          const rawStatus = (body?.status || body?.data?.status || "").toLowerCase();
+          const isPaidStatus =
+            rawStatus === "paid" ||
+            rawStatus === "approved" ||
+            rawStatus === "pago" ||
+            rawStatus === "completed" ||
+            rawStatus === "success";
+
+          if (isPaidStatus && depositId) {
+            const g = globalThis as any;
+            if (Array.isArray(g.__ordersStore)) {
+              g.__ordersStore = g.__ordersStore.map((o: any) => {
+                if (o.id === depositId || o.payment_reference === depositId) {
+                  return {
+                    ...o,
+                    payment_status: "paid",
+                    status: "confirmed",
+                    paid_at: new Date().toISOString(),
+                  };
+                }
+                return o;
+              });
+            }
+            try {
+              const { supabaseAdmin } = await import("./integrations/supabase/client.server");
+              await supabaseAdmin
+                .from("orders")
+                .update({
+                  payment_status: "paid",
+                  status: "confirmed",
+                  paid_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .or(`id.eq.${depositId},payment_reference.eq.${depositId}`);
+            } catch {}
+          }
+          return new Response(JSON.stringify({ ok: true, status: "success" }), {
+            headers: { "content-type": "application/json" },
+          });
+        } catch {
+          return new Response(JSON.stringify({ ok: false }), { status: 400 });
+        }
+      }
+
       // Webhook automático da OniPay
       if (request.method === "POST" && (url.pathname === "/api/public/onipay" || url.pathname === "/api/webhook/onipay")) {
         try {

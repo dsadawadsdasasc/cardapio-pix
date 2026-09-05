@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, Copy, DollarSign, Globe, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Trash2, Truck } from "lucide-react";
+import { Check, Clock, Copy, DollarSign, Globe, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Trash2, Truck, X } from "lucide-react";
 import { deleteAdminOrder, generateAdminPix, getAdminOrders, loginAdmin, updateAdminOrderStatus } from "@/lib/admin.functions";
 
 import heroImg from "@/assets/hero.jpg";
@@ -15,7 +15,7 @@ import {
   type MenuItem,
 } from "@/data/menu";
 import { cart, useCart } from "@/lib/cart";
-import { registerOrder } from "@/lib/checkout.functions";
+import { createCheckoutPix, registerOrder } from "@/lib/checkout.functions";
 import { trackPixelEvent } from "@/lib/pixel";
 
 
@@ -193,9 +193,126 @@ function Index() {
   const doDeleteOrder = useServerFn(deleteAdminOrder);
   const doUpdateOrderStatus = useServerFn(updateAdminOrderStatus);
   const doRegisterOrder = useServerFn(registerOrder);
+  const doCreateCheckoutPix = useServerFn(createCheckoutPix);
+
+  const [checkoutPixModal, setCheckoutPixModal] = useState<{
+    orderId: string;
+    amount: number;
+    copyPaste: string;
+    qrCodeUrl: string;
+  } | null>(null);
+  const [checkoutPixSubmitting, setCheckoutPixSubmitting] = useState(false);
+  const [checkoutPixError, setCheckoutPixError] = useState<string | null>(null);
+  const [checkoutPixCopied, setCheckoutPixCopied] = useState(false);
+  const [checkoutPixPaid, setCheckoutPixPaid] = useState(false);
 
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+
+  // Polling em tempo real quando o modal de Pix da AkadPay estiver aberto
+  useEffect(() => {
+    if (!checkoutPixModal?.orderId || checkoutPixPaid) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/check-order-status?id=${checkoutPixModal.orderId}`);
+        const data = await res.json();
+        if (data?.paid) {
+          setCheckoutPixPaid(true);
+          cart.clear();
+          trackPixelEvent("Purchase", {
+            value: checkoutPixModal.amount,
+            currency: "BRL",
+            num_items: itemCount,
+          });
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [checkoutPixModal, checkoutPixPaid, itemCount]);
+
+  const handleCreatePixCheckout = async () => {
+    if (!form.name.trim()) {
+      alert("Por favor, preencha o seu nome.");
+      return;
+    }
+    if (!form.address.trim()) {
+      alert("Por favor, informe seu endereço completo de entrega.");
+      return;
+    }
+    if (detailed.length === 0) {
+      alert("Seu carrinho está vazio.");
+      return;
+    }
+    setCheckoutPixError(null);
+    setCheckoutPixSubmitting(true);
+    const clientIpDetected = clientIp || "127.0.0.1";
+    try {
+      const res = await doCreateCheckoutPix({
+        data: {
+          customerName: form.name.trim(),
+          customerPhone: form.phone.trim() || "47920036595",
+          address: form.address.trim(),
+          notes: form.notes.trim() || "",
+          clientIp: clientIpDetected,
+          items: detailed.map((d) => ({
+            itemId: d.item.id,
+            qty: d.line.qty,
+            addonIds: d.addons.map((a) => a.id),
+            notes: d.line.notes || "",
+          })),
+        },
+      });
+      if (res.ok) {
+        setCheckoutPixModal({
+          orderId: res.orderId,
+          amount: res.amount,
+          copyPaste: res.copyPaste,
+          qrCodeUrl: res.qrCodeUrl,
+        });
+        setCheckoutPixPaid(false);
+        trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
+        trackPixelEvent("AddPaymentInfo", { value: subtotal, currency: "BRL" });
+        if (typeof window !== "undefined") {
+          try {
+            const localOrder = {
+              id: res.orderId,
+              customer_name: form.name.trim(),
+              customer_phone: form.phone.trim() || "-",
+              address: form.address.trim(),
+              notes: form.notes.trim() || null,
+              client_ip: clientIpDetected,
+              subtotal_cents: Math.round(subtotal * 100),
+              shipping_cents: 0,
+              total_cents: Math.round(subtotal * 100),
+              payment_status: "unpaid",
+              payment_provider: "akadpay",
+              created_at: new Date().toISOString(),
+              paid_at: null,
+              pix_copy_paste: res.copyPaste,
+              pix_qr_base64: res.qrCodeUrl,
+              order_items: detailed.map((d, i) => ({
+                id: `item_${i}_${Date.now()}`,
+                item_id: d.item.id,
+                item_name: d.item.name,
+                qty: d.line.qty,
+                unit_price_cents: Math.round((d.total / d.line.qty) * 100),
+                addons: d.addons,
+                notes: d.line.notes || null,
+              })),
+            };
+            const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+            localStorage.setItem("cantinho_orders", JSON.stringify([localOrder, ...list].slice(0, 50)));
+          } catch {}
+        }
+      } else {
+        setCheckoutPixError(res.error || "Não foi possível gerar a cobrança Pix.");
+      }
+    } catch (err: any) {
+      setCheckoutPixError(err?.message || "Erro ao conectar com o serviço de Pix.");
+    } finally {
+      setCheckoutPixSubmitting(false);
+    }
+  };
 
   // Auto-aprovação imediata: se já logou como admin no passado, aprova na hora
   useEffect(() => {
@@ -944,72 +1061,106 @@ function Index() {
                     </label>
                   </div>
 
-                  {/* BOTAO DESTACADO DO WHATSAPP */}
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => {
-                      const clientIpDetected = clientIp || "127.0.0.1";
-                      if (typeof window !== "undefined") {
-                        try {
-                          const localOrder = {
-                            id: `wpp_${Date.now()}`,
-                            customer_name: form.name.trim() || "Cliente WhatsApp",
-                            customer_phone: form.phone.trim() || "-",
-                            address: form.address.trim() || "A combinar no WhatsApp",
-                            notes: form.notes.trim() || null,
-                            client_ip: clientIpDetected,
-                            subtotal_cents: Math.round(subtotal * 100),
-                            shipping_cents: 0,
-                            total_cents: Math.round(subtotal * 100),
-                            payment_status: "whatsapp",
-                            payment_provider: "whatsapp",
-                            created_at: new Date().toISOString(),
-                            paid_at: null,
-                            order_items: detailed.map((d, i) => ({
-                              id: `item_${i}_${Date.now()}`,
-                              item_id: d.item.id,
-                              item_name: d.item.name,
-                              qty: d.line.qty,
-                              unit_price_cents: Math.round((d.total / d.line.qty) * 100),
-                              addons: d.addons,
-                              notes: d.line.notes || null,
-                            })),
-                          };
-                          const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
-                          localStorage.setItem("cantinho_orders", JSON.stringify([localOrder, ...list].slice(0, 50)));
-                        } catch {}
-                      }
-                      if (detailed.length > 0) {
-                        doRegisterOrder({
-                          data: {
-                            customerName: form.name.trim() || "Cliente WhatsApp",
-                            customerPhone: form.phone.trim() || "-",
-                            address: form.address.trim() || "A combinar no WhatsApp",
-                            notes: form.notes.trim() || "",
-                            clientIp: clientIpDetected,
-                            items: detailed.map((d) => ({
-                              itemId: d.item.id,
-                              qty: d.line.qty,
-                              addonIds: d.addons.map((a) => a.id),
-                              notes: d.line.notes || "",
-                            })),
-                          },
-                        }).catch(() => {});
-                      }
-                      trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
-                      trackPixelEvent("Lead", { value: subtotal, currency: "BRL" });
-                    }}
-                    className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white py-4 px-6 text-base md:text-lg font-black tracking-wide shadow-xl shadow-[#25D366]/30 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <MessageCircle className="h-6 w-6 fill-current shrink-0" />
-                    Finalizar Pedido pelo WhatsApp · {formatBRL(subtotal + shipping)}
-                  </a>
+                  {/* BOTAO PIX INSTANTANEO AKADPAY */}
+                  <div className="mt-6 space-y-3">
+                    <button
+                      type="button"
+                      disabled={checkoutPixSubmitting}
+                      onClick={handleCreatePixCheckout}
+                      className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white py-4 px-6 text-base md:text-lg font-black tracking-wide shadow-xl shadow-emerald-500/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+                    >
+                      {checkoutPixSubmitting ? (
+                        <Loader2 className="h-6 w-6 animate-spin shrink-0" />
+                      ) : (
+                        <QrCode className="h-6 w-6 shrink-0" />
+                      )}
+                      {checkoutPixSubmitting
+                        ? "Gerando Pix AkadPay..."
+                        : `Pagar com Pix Instantâneo · ${formatBRL(subtotal + shipping)}`}
+                    </button>
 
-                  <p className="mt-3 text-center text-xs text-muted-foreground">
-                    ⚡ Ao clicar, o WhatsApp abrirá com sua lista de itens e endereço já prontos!
-                  </p>
+                    {checkoutPixError && (
+                      <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-xs font-semibold text-destructive text-center">
+                        {checkoutPixError}
+                      </p>
+                    )}
+
+                    <div className="relative my-3 flex items-center justify-center">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-border" />
+                      </div>
+                      <span className="relative bg-card px-3 text-xs font-semibold text-muted-foreground uppercase">
+                        ou finalize direto pelo atendente
+                      </span>
+                    </div>
+
+                    {/* BOTAO DESTACADO DO WHATSAPP */}
+                    <a
+                      href={whatsappHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        const clientIpDetected = clientIp || "127.0.0.1";
+                        if (typeof window !== "undefined") {
+                          try {
+                            const localOrder = {
+                              id: `wpp_${Date.now()}`,
+                              customer_name: form.name.trim() || "Cliente WhatsApp",
+                              customer_phone: form.phone.trim() || "-",
+                              address: form.address.trim() || "A combinar no WhatsApp",
+                              notes: form.notes.trim() || null,
+                              client_ip: clientIpDetected,
+                              subtotal_cents: Math.round(subtotal * 100),
+                              shipping_cents: 0,
+                              total_cents: Math.round(subtotal * 100),
+                              payment_status: "whatsapp",
+                              payment_provider: "whatsapp",
+                              created_at: new Date().toISOString(),
+                              paid_at: null,
+                              order_items: detailed.map((d, i) => ({
+                                id: `item_${i}_${Date.now()}`,
+                                item_id: d.item.id,
+                                item_name: d.item.name,
+                                qty: d.line.qty,
+                                unit_price_cents: Math.round((d.total / d.line.qty) * 100),
+                                addons: d.addons,
+                                notes: d.line.notes || null,
+                              })),
+                            };
+                            const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+                            localStorage.setItem("cantinho_orders", JSON.stringify([localOrder, ...list].slice(0, 50)));
+                          } catch {}
+                        }
+                        if (detailed.length > 0) {
+                          doRegisterOrder({
+                            data: {
+                              customerName: form.name.trim() || "Cliente WhatsApp",
+                              customerPhone: form.phone.trim() || "-",
+                              address: form.address.trim() || "A combinar no WhatsApp",
+                              notes: form.notes.trim() || "",
+                              clientIp: clientIpDetected,
+                              items: detailed.map((d) => ({
+                                itemId: d.item.id,
+                                qty: d.line.qty,
+                                addonIds: d.addons.map((a) => a.id),
+                                notes: d.line.notes || "",
+                              })),
+                            },
+                          }).catch(() => {});
+                        }
+                        trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
+                        trackPixelEvent("Lead", { value: subtotal, currency: "BRL" });
+                      }}
+                      className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white py-3.5 px-6 text-base font-black tracking-wide shadow-md shadow-[#25D366]/20 transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]"
+                    >
+                      <MessageCircle className="h-5 w-5 fill-current shrink-0" />
+                      Finalizar Pedido pelo WhatsApp
+                    </a>
+
+                    <p className="mt-2 text-center text-xs text-muted-foreground">
+                      ⚡ Pagando com Pix Instantâneo seu pedido entra direto na fila de produção!
+                    </p>
+                  </div>
                 </div>
 
               </div>
@@ -1185,16 +1336,16 @@ function Index() {
                   </div>
                 </div>
 
-                {/* GERADOR DE CÓDIGOS PIX ONIPAY */}
+                {/* GERADOR DE CÓDIGOS PIX AKADPAY */}
                 <div className="mt-8 rounded-2xl border border-primary/30 bg-card p-6 shadow-md">
                   <div className="flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
                       <QrCode className="h-5 w-5" />
                     </span>
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">Gerar Código Pix (OniPay)</h3>
+                      <h3 className="text-lg font-bold text-foreground">Gerar Código Pix (AkadPay)</h3>
                       <p className="text-xs text-muted-foreground">
-                        Gere uma cobrança Pix instantânea com o valor desejado usando a API OniPay.
+                        Gere uma cobrança Pix instantânea com o valor desejado usando a API AkadPay.
                       </p>
                     </div>
                   </div>
@@ -1205,8 +1356,8 @@ function Index() {
                       setGenPixError(null);
                       setGenPixResult(null);
                       const num = parseFloat(genPixAmount.replace(",", "."));
-                      if (isNaN(num) || num <= 0) {
-                        setGenPixError("Informe um valor válido maior que R$ 0,00.");
+                      if (isNaN(num) || num < 5) {
+                        setGenPixError("Informe um valor válido de no mínimo R$ 5,00 (mínimo AkadPay).");
                         return;
                       }
                       setGenPixSubmitting(true);
@@ -1223,14 +1374,14 @@ function Index() {
                             id: res.depositId,
                             customer_name: "Cobrança Pix (ADM)",
                             customer_phone: "-",
-                            address: "Cobrança avulsa OniPay",
+                            address: "Cobrança avulsa AkadPay",
                             notes: `Cobrança Pix gerada no painel ADM`,
                             client_ip: res.clientIp || clientIp || "127.0.0.1",
                             subtotal_cents: Math.round(res.amount * 100),
                             shipping_cents: 0,
                             total_cents: Math.round(res.amount * 100),
                             payment_status: res.status === "paid" ? "paid" : "unpaid",
-                            payment_provider: "onipay",
+                            payment_provider: "akadpay",
                             created_at: new Date().toISOString(),
                             paid_at: res.status === "paid" ? new Date().toISOString() : null,
                             pix_copy_paste: res.copyPaste,
@@ -1238,8 +1389,8 @@ function Index() {
                             order_items: [
                               {
                                 id: `item_${Date.now()}`,
-                                item_id: "pix_onipay",
-                                item_name: `Cobrança Pix OniPay`,
+                                item_id: "pix_akadpay",
+                                item_name: `Cobrança Pix AkadPay`,
                                 qty: 1,
                                 unit_price_cents: Math.round(res.amount * 100),
                                 addons: [],
@@ -1258,7 +1409,7 @@ function Index() {
                           setGenPixError(res.error || "Não foi possível gerar o código Pix.");
                         }
                       } catch (err: any) {
-                        setGenPixError(err?.message || "Erro de conexão ao comunicar com a OniPay.");
+                        setGenPixError(err?.message || "Erro de conexão ao comunicar com a AkadPay.");
                       } finally {
                         setGenPixSubmitting(false);
                       }
@@ -1307,7 +1458,7 @@ function Index() {
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60 shrink-0"
                       >
                         {genPixSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                        {genPixSubmitting ? "Gerando Pix..." : "Gerar Código Pix OniPay"}
+                        {genPixSubmitting ? "Gerando Pix..." : "Gerar Código Pix AkadPay"}
                       </button>
                     </div>
 
@@ -1322,7 +1473,7 @@ function Index() {
                     <div className="mt-6 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-5 text-center">
                       <div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400">
                         <Check className="h-5 w-5" />
-                        <h4 className="text-base font-bold">Código Pix OniPay Gerado com Sucesso!</h4>
+                        <h4 className="text-base font-bold">Código Pix AkadPay Gerado com Sucesso!</h4>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Valor gerado: <strong className="text-foreground">{formatBRL(genPixResult.amount)}</strong>
@@ -1332,7 +1483,7 @@ function Index() {
                         <div className="mt-4 flex justify-center">
                           <img
                             src={
-                              genPixResult.qrCodeBase64.startsWith("data:")
+                              genPixResult.qrCodeBase64.startsWith("http") || genPixResult.qrCodeBase64.startsWith("data:")
                                 ? genPixResult.qrCodeBase64
                                 : `data:image/png;base64,${genPixResult.qrCodeBase64}`
                             }
@@ -1421,7 +1572,15 @@ function Index() {
                                       : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
                                   }`}
                                 >
-                                  {isPaid ? "✓ Pix Pago" : isWhatsApp ? "💬 WhatsApp" : "⏳ Pix Pendente"}
+                                  {isPaid
+                                    ? order.payment_provider === "akadpay"
+                                      ? "✓ Pix Pago (AkadPay)"
+                                      : "✓ Pix Pago"
+                                    : isWhatsApp
+                                    ? "💬 WhatsApp"
+                                    : order.payment_provider === "akadpay"
+                                    ? "⚡ Pix AkadPay (Pendente)"
+                                    : "⏳ Pix Pendente"}
                                 </span>
 
                                 {!isPaid && (
@@ -1584,6 +1743,136 @@ function Index() {
             {tab === "pedido" ? "Continuar comprando" : "Finalizar pelo WhatsApp"}
           </span>
         </button>
+      )}
+
+      {/* MODAL PIX INSTANTÂNEO AKADPAY DO CLIENTE */}
+      {checkoutPixModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="relative w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl text-center max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setCheckoutPixModal(null);
+                setCheckoutPixPaid(false);
+              }}
+              className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              aria-label="Fechar"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {checkoutPixPaid ? (
+              <div className="py-4">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-500 animate-bounce">
+                  <Check className="h-8 w-8 stroke-[3]" />
+                </div>
+                <h3 className="mt-4 text-2xl font-black text-foreground">Pagamento Confirmado!</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Recebemos seu Pix de <strong>{formatBRL(checkoutPixModal.amount)}</strong> com sucesso via AkadPay! Seu pedido já está sendo preparado pela nossa equipe.
+                </p>
+                <div className="mt-6 flex flex-col gap-3">
+                  <a
+                    href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+                      `Olá! Acabei de realizar o pagamento Pix no valor de ${formatBRL(
+                        checkoutPixModal.amount,
+                      )} para o pedido #${checkoutPixModal.orderId.slice(0, 8)}!`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white py-3.5 px-6 font-bold shadow-md transition-transform active:scale-95"
+                  >
+                    <MessageCircle className="h-5 w-5 fill-current" />
+                    Acompanhar pelo WhatsApp
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCheckoutPixModal(null);
+                      setCheckoutPixPaid(false);
+                      setTab("cardapio");
+                    }}
+                    className="w-full rounded-2xl border border-border bg-secondary py-3 text-sm font-semibold hover:bg-secondary/80 transition-colors"
+                  >
+                    Voltar ao Cardápio
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-center gap-2 text-emerald-500">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15">
+                    <QrCode className="h-5 w-5" />
+                  </span>
+                  <h3 className="text-xl font-extrabold text-foreground">Pix Instantâneo (AkadPay)</h3>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Escaneie o QR Code ou copie o código Pix abaixo:
+                </p>
+
+                <div className="mt-4 rounded-2xl bg-secondary/50 p-3">
+                  <span className="text-xs text-muted-foreground">Valor a pagar:</span>
+                  <p className="text-2xl font-black text-emerald-500">
+                    {formatBRL(checkoutPixModal.amount)}
+                  </p>
+                </div>
+
+                {checkoutPixModal.qrCodeUrl && (
+                  <div className="mt-4 flex justify-center">
+                    <img
+                      src={checkoutPixModal.qrCodeUrl}
+                      alt="QR Code Pix AkadPay"
+                      className="h-52 w-52 rounded-2xl border border-border bg-white p-2 shadow-sm"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-4">
+                  <p className="text-xs font-semibold text-muted-foreground">Chave Pix Copia e Cola:</p>
+                  <div className="mt-1 overflow-hidden rounded-xl border border-border bg-background p-2.5">
+                    <p className="font-mono text-xs break-all text-foreground select-all max-h-16 overflow-y-auto">
+                      {checkoutPixModal.copyPaste}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (checkoutPixModal.copyPaste) {
+                        await navigator.clipboard.writeText(checkoutPixModal.copyPaste);
+                        setCheckoutPixCopied(true);
+                        setTimeout(() => setCheckoutPixCopied(false), 3000);
+                      }
+                    }}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white py-3 text-sm font-bold shadow-md transition-all active:scale-95"
+                  >
+                    {checkoutPixCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {checkoutPixCopied ? "Chave Pix Copiada com Sucesso!" : "Copiar Chave Pix Copia e Cola"}
+                  </button>
+                </div>
+
+                <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs font-medium text-amber-500">
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                  <span>Aguardando confirmação do pagamento... A aprovação é automática em segundos!</span>
+                </div>
+
+                <div className="mt-4">
+                  <a
+                    href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+                      `Olá! Gere um Pix no valor de ${formatBRL(
+                        checkoutPixModal.amount,
+                      )} para meu pedido (#${checkoutPixModal.orderId.slice(0, 8)}). Aguardo confirmação!`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5 text-[#25D366]" />
+                    Já pagou? Enviar comprovante no WhatsApp
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
