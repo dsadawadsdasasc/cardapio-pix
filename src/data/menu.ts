@@ -237,11 +237,7 @@ export const menu: MenuItem[] = [
 
 /** Adicionais por categoria, com preço praticado em delivery. */
 export const addonsByCategory: Record<CategoryId, Addon[]> = {
-  combos: [
-    { id: "cb-fritas", name: "Porção de fritas extra", price: 12.9 },
-    { id: "cb-bacon", name: "Bacon extra", price: 6.5 },
-    { id: "cb-sobremesa", name: "Fatia de bolo de chocolate", price: 9.9 },
-  ],
+  combos: [],
   xis: [
     { id: "x-bacon", name: "Bacon extra", price: 6.5 },
     { id: "x-cheddar", name: "Cheddar cremoso", price: 5 },

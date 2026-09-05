@@ -37,6 +37,17 @@ export const Route = createFileRoute("/produto/$id")({
   component: ProdutoPage,
 });
 
+const PIZZA_FLAVORS = [
+  "Calabresa G",
+  "Mussarela G",
+  "Portuguesa G",
+  "Frango c/ Catupiry G",
+  "Quatro Queijos G",
+  "Pepperoni G",
+  "Bacon c/ Cheddar G",
+  "Chocolate G",
+];
+
 function ProdutoPage() {
   const { id } = Route.useParams();
   const { line: lineId } = Route.useSearch();
@@ -44,10 +55,28 @@ function ProdutoPage() {
 
   const item = useMemo(() => menu.find((m) => m.id === id), [id]);
   const existing = lineId ? getLine(lineId) : null;
+  const isPizzaCombo = item?.id === "combo-pizza-dupla" || item?.id === "combo-mega";
+
+  const initialFlavors = useMemo(() => {
+    if (!existing?.notes) {
+      return { p1: "Calabresa G", p2: "Mussarela G", cleanNotes: "" };
+    }
+    const match = existing.notes.match(/^Pizzas:\s*(.+?)\s*e\s*([^\n·]+)(?:\s*·\s*Obs:\s*(.*))?$/i);
+    if (match) {
+      return {
+        p1: match[1].trim(),
+        p2: match[2].trim(),
+        cleanNotes: match[3]?.trim() ?? "",
+      };
+    }
+    return { p1: "Calabresa G", p2: "Mussarela G", cleanNotes: existing.notes };
+  }, [existing]);
 
   const [qty, setQty] = useState(existing?.qty ?? 1);
   const [addonIds, setAddonIds] = useState<string[]>(existing?.addonIds ?? []);
-  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [pizzaFlavor1, setPizzaFlavor1] = useState(initialFlavors.p1);
+  const [pizzaFlavor2, setPizzaFlavor2] = useState(initialFlavors.p2);
+  const [notes, setNotes] = useState(initialFlavors.cleanNotes);
 
   const IS_SITE_OFFLINE = false;
 
@@ -90,7 +119,7 @@ function ProdutoPage() {
     );
   }
 
-  const addons = addonsByCategory[item.category];
+  const addons = item.category === "combos" ? [] : addonsByCategory[item.category];
   const unit =
     item.price +
     getAddons(item.category)
@@ -104,8 +133,12 @@ function ProdutoPage() {
   const category = categories.find((c) => c.id === item.category);
 
   const submit = () => {
-    if (existing) cart.update(existing.lineId, { qty, addonIds, notes });
-    else cart.add({ itemId: item.id, qty, addonIds, notes });
+    const finalNotes = isPizzaCombo
+      ? `Pizzas: ${pizzaFlavor1} e ${pizzaFlavor2}${notes.trim() ? ` · Obs: ${notes.trim()}` : ""}`
+      : notes.trim();
+
+    if (existing) cart.update(existing.lineId, { qty, addonIds, notes: finalNotes });
+    else cart.add({ itemId: item.id, qty, addonIds, notes: finalNotes });
     navigate({ to: "/", search: { tab: "pedido" } });
   };
 
@@ -156,14 +189,88 @@ function ProdutoPage() {
           <div className="mt-4 rounded-xl border border-primary/40 bg-primary/10 p-4">
             <p className="text-sm font-semibold text-primary">Atenção: escolha os sabores</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Escreva no campo de observações abaixo quais produtos você quer dentro do combo.
-              Ex.: em um combo com 4 hambúrgueres, informe os 4 (bacon, salada, duplo smash...).
+              {item.id === "combo-pizza-dupla"
+                ? "Selecione os sabores das 2 pizzas no seletor abaixo. Se quiser tirar algum ingrediente ou fazer observações, use o campo no final da página."
+                : item.id === "combo-mega"
+                ? "Selecione os 2 sabores de pizza abaixo. Para os 4 Xis, informe os sabores desejados no campo de observações abaixo."
+                : "Escreva no campo de observações abaixo quais produtos você quer dentro do combo. Ex.: em um combo com 4 hambúrgueres, informe os 4 (bacon, salada, duplo smash...)."}
             </p>
           </div>
         )}
 
+        {isPizzaCombo && (
+          <section className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-4 sm:p-5">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground text-base shadow-sm">
+                🍕
+              </span>
+              <div>
+                <h2 className="text-sm font-bold text-foreground">Escolha os 2 sabores de pizza</h2>
+                <p className="text-xs text-muted-foreground">Inclusas no combo · Pizzas grandes (8 fatias cada)</p>
+              </div>
+            </div>
 
-        <section className={`mt-8 ${addons.length === 0 ? "hidden" : ""}`}>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
+                <label
+                  htmlFor="pizza-flavor-1"
+                  className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5"
+                >
+                  1ª Pizza Grande
+                </label>
+                <div className="relative">
+                  <select
+                    id="pizza-flavor-1"
+                    value={pizzaFlavor1}
+                    onChange={(e) => setPizzaFlavor1(e.target.value)}
+                    className="w-full appearance-none rounded-lg border border-border bg-background px-3 py-2.5 pr-8 text-sm font-semibold text-foreground outline-none transition-colors hover:border-primary focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    {PIZZA_FLAVORS.map((f) => (
+                      <option key={f} value={f} className="bg-card text-foreground">
+                        {f}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-3 shadow-xs">
+                <label
+                  htmlFor="pizza-flavor-2"
+                  className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5"
+                >
+                  2ª Pizza Grande
+                </label>
+                <div className="relative">
+                  <select
+                    id="pizza-flavor-2"
+                    value={pizzaFlavor2}
+                    onChange={(e) => setPizzaFlavor2(e.target.value)}
+                    className="w-full appearance-none rounded-lg border border-border bg-background px-3 py-2.5 pr-8 text-sm font-semibold text-foreground outline-none transition-colors hover:border-primary focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    {PIZZA_FLAVORS.map((f) => (
+                      <option key={f} value={f} className="bg-card text-foreground">
+                        {f}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className={`mt-8 ${addons.length === 0 || item.category === "combos" ? "hidden" : ""}`}>
           <h2 className="text-sm font-semibold uppercase tracking-widest text-accent">
             Adicionais
           </h2>
