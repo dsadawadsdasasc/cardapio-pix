@@ -1061,13 +1061,13 @@ function Index() {
                     </label>
                   </div>
 
-                  {/* BOTAO PIX INSTANTANEO AKADPAY */}
+                  {/* BOTAO PAGAR NO PIX (DESTAQUE LARANJA) */}
                   <div className="mt-6 space-y-3">
                     <button
                       type="button"
                       disabled={checkoutPixSubmitting}
                       onClick={handleCreatePixCheckout}
-                      className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white py-4 px-6 text-base md:text-lg font-black tracking-wide shadow-xl shadow-emerald-500/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+                      className="flex w-full items-center justify-center gap-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white py-4 px-6 text-base md:text-lg font-black tracking-wide shadow-xl shadow-orange-500/30 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 cursor-pointer"
                     >
                       {checkoutPixSubmitting ? (
                         <Loader2 className="h-6 w-6 animate-spin shrink-0" />
@@ -1075,8 +1075,8 @@ function Index() {
                         <QrCode className="h-6 w-6 shrink-0" />
                       )}
                       {checkoutPixSubmitting
-                        ? "Gerando Pix AkadPay..."
-                        : `Pagar com Pix Instantâneo · ${formatBRL(subtotal + shipping)}`}
+                        ? "Gerando Pix..."
+                        : `Pagar no Pix · ${formatBRL(subtotal + shipping)}`}
                     </button>
 
                     {checkoutPixError && (
@@ -1089,12 +1089,12 @@ function Index() {
                       <div className="absolute inset-0 flex items-center">
                         <div className="w-full border-t border-border" />
                       </div>
-                      <span className="relative bg-card px-3 text-xs font-semibold text-muted-foreground uppercase">
-                        ou finalize direto pelo atendente
+                      <span className="relative bg-card px-3 text-xs font-medium text-muted-foreground">
+                        ou
                       </span>
                     </div>
 
-                    {/* BOTAO DESTACADO DO WHATSAPP */}
+                    {/* BOTAO SECUNDARIO DO WHATSAPP (VERDE MENOS FORTE) */}
                     <a
                       href={whatsappHref}
                       target="_blank"
@@ -1151,14 +1151,14 @@ function Index() {
                         trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
                         trackPixelEvent("Lead", { value: subtotal, currency: "BRL" });
                       }}
-                      className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white py-3.5 px-6 text-base font-black tracking-wide shadow-md shadow-[#25D366]/20 transition-all duration-300 hover:scale-[1.01] active:scale-[0.99]"
+                      className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-emerald-800/80 hover:bg-emerald-800 text-emerald-100 border border-emerald-600/30 py-3 px-5 text-sm font-semibold transition-all hover:scale-[1.01] active:scale-[0.99]"
                     >
-                      <MessageCircle className="h-5 w-5 fill-current shrink-0" />
+                      <MessageCircle className="h-4 w-4 fill-current shrink-0" />
                       Finalizar Pedido pelo WhatsApp
                     </a>
 
                     <p className="mt-2 text-center text-xs text-muted-foreground">
-                      ⚡ Pagando com Pix Instantâneo seu pedido entra direto na fila de produção!
+                      ⚡ Pagando no Pix a aprovação é imediata e seu pedido entra direto na produção!
                     </p>
                   </div>
                 </div>
@@ -1729,23 +1729,23 @@ function Index() {
         </div>
       </footer>
 
-      {itemCount > 0 && (
+      {itemCount > 0 && tab !== "pedido" && (
         <button
           type="button"
-          onClick={() => setTab(tab === "pedido" ? "cardapio" : "pedido")}
-          className="fixed inset-x-3 bottom-3 z-30 flex items-center justify-between gap-3 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] px-4 py-3.5 text-white shadow-xl shadow-emerald-950/40 sm:mx-auto sm:max-w-md transition-all active:scale-[0.98]"
+          onClick={() => setTab("pedido")}
+          className="fixed inset-x-3 bottom-3 z-30 flex items-center justify-between gap-3 rounded-2xl bg-orange-500 hover:bg-orange-600 px-5 py-4 text-white shadow-xl shadow-orange-500/35 sm:mx-auto sm:max-w-md transition-all active:scale-[0.98] cursor-pointer"
         >
-          <span className="flex items-center gap-2 text-sm font-bold">
-            <MessageCircle className="h-5 w-5 fill-current" />
+          <span className="flex items-center gap-2.5 text-sm font-bold">
+            <ShoppingBag className="h-5 w-5" />
             {itemCount} {itemCount === 1 ? "item" : "itens"} · {formatBRL(subtotal + shipping)}
           </span>
           <span className="text-sm font-black underline underline-offset-4">
-            {tab === "pedido" ? "Continuar comprando" : "Finalizar pelo WhatsApp"}
+            Finalizar Pedido
           </span>
         </button>
       )}
 
-      {/* MODAL PIX INSTANTÂNEO AKADPAY DO CLIENTE */}
+      {/* MODAL PIX DO CLIENTE */}
       {checkoutPixModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="relative w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl text-center max-h-[90vh] overflow-y-auto">
@@ -1768,7 +1768,7 @@ function Index() {
                 </div>
                 <h3 className="mt-4 text-2xl font-black text-foreground">Pagamento Confirmado!</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Recebemos seu Pix de <strong>{formatBRL(checkoutPixModal.amount)}</strong> com sucesso via AkadPay! Seu pedido já está sendo preparado pela nossa equipe.
+                  Recebemos seu Pix de <strong>{formatBRL(checkoutPixModal.amount)}</strong> com sucesso! Seu pedido já está sendo preparado pela nossa equipe.
                 </p>
                 <div className="mt-6 flex flex-col gap-3">
                   <a
@@ -1799,11 +1799,11 @@ function Index() {
               </div>
             ) : (
               <div>
-                <div className="flex items-center justify-center gap-2 text-emerald-500">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15">
+                <div className="flex items-center justify-center gap-2 text-orange-500">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-500/15">
                     <QrCode className="h-5 w-5" />
                   </span>
-                  <h3 className="text-xl font-extrabold text-foreground">Pix Instantâneo (AkadPay)</h3>
+                  <h3 className="text-xl font-extrabold text-foreground">Pagamento no Pix</h3>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Escaneie o QR Code ou copie o código Pix abaixo:
@@ -1811,7 +1811,7 @@ function Index() {
 
                 <div className="mt-4 rounded-2xl bg-secondary/50 p-3">
                   <span className="text-xs text-muted-foreground">Valor a pagar:</span>
-                  <p className="text-2xl font-black text-emerald-500">
+                  <p className="text-2xl font-black text-orange-500">
                     {formatBRL(checkoutPixModal.amount)}
                   </p>
                 </div>
@@ -1820,7 +1820,7 @@ function Index() {
                   <div className="mt-4 flex justify-center">
                     <img
                       src={checkoutPixModal.qrCodeUrl}
-                      alt="QR Code Pix AkadPay"
+                      alt="QR Code Pix"
                       className="h-52 w-52 rounded-2xl border border-border bg-white p-2 shadow-sm"
                     />
                   </div>
@@ -1842,7 +1842,7 @@ function Index() {
                         setTimeout(() => setCheckoutPixCopied(false), 3000);
                       }
                     }}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white py-3 text-sm font-bold shadow-md transition-all active:scale-95"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white py-3 text-sm font-bold shadow-md transition-all active:scale-95"
                   >
                     {checkoutPixCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     {checkoutPixCopied ? "Chave Pix Copiada com Sucesso!" : "Copiar Chave Pix Copia e Cola"}
