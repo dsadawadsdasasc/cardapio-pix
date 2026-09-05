@@ -21,7 +21,7 @@ export const Route = createFileRoute("/produto/$id")({
     const item = menu.find((m) => m.id === params.id);
     const title = item ? `${item.name} | Cantinho da Gula` : "Produto | Cantinho da Gula";
     const description = item
-      ? `${item.description} Monte com adicionais e observações. Delivery em Florianópolis.`
+      ? `${item.description} Monte com adicionais e observações. Delivery em Porto Alegre.`
       : "Produto não encontrado no cardápio do Cantinho da Gula.";
     return {
       meta: [
@@ -182,7 +182,7 @@ function ProdutoPage() {
         <p className="mt-3 text-xl font-bold">{formatBRL(item.price)}</p>
 
         <p className="mt-2 text-xs font-medium text-muted-foreground">
-          🛵 Entrega grátis para Floripa e região
+          🛵 Entrega grátis para Porto Alegre e região
         </p>
 
         {item.category === "combos" && (

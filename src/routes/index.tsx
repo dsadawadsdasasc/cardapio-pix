@@ -36,9 +36,9 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Delivery em Florianópolis: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Entrega grátis para Florianópolis e região.",
+          "Delivery em Porto Alegre: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Entrega grátis para Porto Alegre e região.",
       },
-      { property: "og:title", content: "Cantinho da Gula | Delivery em Florianópolis" },
+      { property: "og:title", content: "Cantinho da Gula | Delivery em Porto Alegre" },
       {
         property: "og:description",
         content:
@@ -694,7 +694,7 @@ function Index() {
                   </p>
                   <span className="mt-3 inline-flex items-center gap-2 rounded-full border border-border bg-secondary/60 px-3.5 py-1 text-xs font-medium text-muted-foreground">
                     <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-                    Entrega grátis para Floripa e região
+                    Entrega grátis para Porto Alegre e região
                   </span>
 
                 </div>
@@ -900,7 +900,7 @@ function Index() {
                       <div>
                         <h3 className="font-bold text-foreground">Entrega rápida</h3>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Média de 40 minutos em Florianópolis e região. Entregamos seu pedido quentinho e com agilidade.
+                          Média de 40 minutos em Porto Alegre e região. Entregamos seu pedido quentinho e com agilidade.
                         </p>
                       </div>
                     </div>
@@ -1711,7 +1711,7 @@ function Index() {
 
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-8 text-sm text-muted-foreground">
-          <span>© {new Date().getFullYear()} Cantinho da Gula · Florianópolis / SC</span>
+          <span>© {new Date().getFullYear()} Cantinho da Gula · Porto Alegre / RS</span>
           <button
             type="button"
             onClick={() => setTab("vendas")}
