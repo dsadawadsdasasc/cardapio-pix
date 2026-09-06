@@ -19,10 +19,10 @@ export const Route = createFileRoute("/produto/$id")({
   }),
   head: ({ params }) => {
     const item = menu.find((m) => m.id === params.id);
-    const title = item ? `${item.name} | Cantinho da Gula` : "Produto | Cantinho da Gula";
+    const title = item ? `${item.name} | Xis Glutão` : "Produto | Xis Glutão";
     const description = item
       ? `${item.description} Monte com adicionais e observações. Delivery em Porto Alegre.`
-      : "Produto não encontrado no cardápio do Cantinho da Gula.";
+      : "Produto não encontrado no cardápio do Xis Glutão.";
     return {
       meta: [
         { title },

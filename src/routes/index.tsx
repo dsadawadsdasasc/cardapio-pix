@@ -32,13 +32,13 @@ export const Route = createFileRoute("/")({
   }),
   head: () => ({
     meta: [
-      { title: "Cantinho da Gula | Delivery de xis, pizza, sushi e açaí" },
+      { title: "Xis Glutão | Delivery de xis, pizza, sushi e açaí" },
       {
         name: "description",
         content:
           "Delivery em Porto Alegre: combos baratos, xis gaúcho, pizza artesanal, barcas de sushi, bolos e açaí. Entrega grátis para Porto Alegre e região.",
       },
-      { property: "og:title", content: "Cantinho da Gula | Delivery em Porto Alegre" },
+      { property: "og:title", content: "Xis Glutão | Delivery em Porto Alegre" },
       {
         property: "og:description",
         content:
@@ -591,19 +591,19 @@ function Index() {
               setTab("cardapio");
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
-            aria-label="Cantinho da Gula, voltar ao topo do cardápio"
+            aria-label="Xis Glutão, voltar ao topo do cardápio"
             className="flex items-center gap-2.5 text-left"
           >
             <img
               src={logoImg}
-              alt="Logo Cantinho da Gula"
+              alt="Logo Xis Glutão"
               width={40}
               height={40}
               className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-primary/40"
             />
             <div>
               <span className="block text-lg font-extrabold leading-none tracking-tight">
-                Cantinho <span className="text-primary">da Gula</span>
+                Xis <span className="text-primary">Glutão</span>
               </span>
               <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
@@ -1711,7 +1711,7 @@ function Index() {
 
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-8 text-sm text-muted-foreground">
-          <span>© {new Date().getFullYear()} Cantinho da Gula · Porto Alegre / RS</span>
+          <span>© {new Date().getFullYear()} Xis Glutão · Porto Alegre / RS</span>
           <button
             type="button"
             onClick={() => setTab("vendas")}
