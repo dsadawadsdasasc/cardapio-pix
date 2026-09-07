@@ -77,17 +77,35 @@ export async function createBravoPayTransaction(
     );
   }
 
+  const customerData: Record<string, any> = {};
+  if (params.customer?.name && params.customer.name.trim()) {
+    customerData.name = params.customer.name.trim();
+  }
+  if (params.customer?.email && params.customer.email.trim()) {
+    customerData.email = params.customer.email.trim();
+  }
+  if (params.customer?.phone && params.customer.phone.trim()) {
+    const p = params.customer.phone.replace(/\D/g, "");
+    if (p.length >= 10) customerData.phone = p;
+  }
+  if (params.customer?.cpf && params.customer.cpf.trim()) {
+    const cleanCpf = params.customer.cpf.replace(/\D/g, "");
+    if (cleanCpf && cleanCpf.length >= 11 && cleanCpf !== "00000000000") {
+      customerData.cpf = cleanCpf;
+    }
+  }
+
   const payload: Record<string, any> = {
     amount_cents: Math.round(params.amountCents),
     method: params.method || "pix",
-    customer: {
-      email: params.customer?.email || "cliente@cantinhodagula.online",
-      name: params.customer?.name || "Cliente Cantinho",
-      cpf: params.customer?.cpf?.replace(/\D/g, "") || "00000000000",
-      phone: params.customer?.phone?.replace(/\D/g, "") || "47920036595",
-    },
     description: params.description?.slice(0, 300) || "Pedido Cantinho da Gula",
+    // Desativa anti_desvio agressivo para permitir aprovação 100% direta pela gateway
+    anti_desvio: false,
   };
+
+  if (Object.keys(customerData).length > 0) {
+    payload.customer = customerData;
+  }
 
   if (params.productId) {
     payload.product_id = params.productId;

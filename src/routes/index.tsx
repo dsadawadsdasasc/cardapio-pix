@@ -220,6 +220,7 @@ function Index() {
     provider?: string;
   } | null>(null);
   const [checkoutPixSubmitting, setCheckoutPixSubmitting] = useState(false);
+  const [checkoutCardSubmitting, setCheckoutCardSubmitting] = useState(false);
   const [checkoutPixError, setCheckoutPixError] = useState<string | null>(null);
   const [checkoutPixCopied, setCheckoutPixCopied] = useState(false);
   const [checkoutPixPaid, setCheckoutPixPaid] = useState(false);
@@ -248,30 +249,27 @@ function Index() {
     return () => clearInterval(interval);
   }, [checkoutPixModal, checkoutPixPaid, itemCount]);
 
-  const handleCreatePixCheckout = async () => {
-    if (!form.name.trim()) {
-      alert("Por favor, preencha o seu nome.");
-      return;
-    }
-    if (!form.address.trim()) {
-      alert("Por favor, informe seu endereço completo de entrega.");
-      return;
-    }
+  const handleCreateCheckout = async (method: "pix" | "card" = "pix") => {
     if (detailed.length === 0) {
       alert("Seu carrinho está vazio.");
       return;
     }
     setCheckoutPixError(null);
-    setCheckoutPixSubmitting(true);
+    if (method === "card") {
+      setCheckoutCardSubmitting(true);
+    } else {
+      setCheckoutPixSubmitting(true);
+    }
     const clientIpDetected = clientIp || "127.0.0.1";
     try {
       const res = await doCreateCheckoutPix({
         data: {
-          customerName: form.name.trim(),
-          customerPhone: form.phone.trim() || "47920036595",
-          address: form.address.trim(),
+          customerName: form.name.trim() || "Cliente",
+          customerPhone: form.phone.trim() || "",
+          address: form.address.trim() || "Entrega / Retirada a combinar",
           notes: form.notes.trim() || "",
           clientIp: clientIpDetected,
+          paymentMethod: method,
           items: detailed.map((d) => ({
             itemId: d.item.id,
             qty: d.line.qty,
@@ -292,13 +290,21 @@ function Index() {
         setCheckoutPixPaid(false);
         trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
         trackPixelEvent("AddPaymentInfo", { value: subtotal, currency: "BRL" });
+
+        // Se for cartão de crédito e a gateway retornou o link de pagamento seguro, redireciona diretamente
+        if (method === "card" && (res as any).cardUrl) {
+          try {
+            window.location.href = (res as any).cardUrl;
+          } catch {}
+        }
+
         if (typeof window !== "undefined") {
           try {
             const localOrder = {
               id: res.orderId,
-              customer_name: form.name.trim(),
+              customer_name: form.name.trim() || "Cliente",
               customer_phone: form.phone.trim() || "-",
-              address: form.address.trim(),
+              address: form.address.trim() || "A combinar",
               notes: form.notes.trim() || null,
               client_ip: clientIpDetected,
               subtotal_cents: Math.round(subtotal * 100),
@@ -325,14 +331,18 @@ function Index() {
           } catch {}
         }
       } else {
-        setCheckoutPixError(res.error || "Não foi possível gerar a cobrança Pix.");
+        setCheckoutPixError(res.error || "Não foi possível gerar a cobrança.");
       }
     } catch (err: any) {
-      setCheckoutPixError(err?.message || "Erro ao conectar com o serviço de Pix.");
+      setCheckoutPixError(err?.message || "Erro ao conectar com o serviço de pagamento.");
     } finally {
       setCheckoutPixSubmitting(false);
+      setCheckoutCardSubmitting(false);
     }
   };
+
+  const handleCreatePixCheckout = () => handleCreateCheckout("pix");
+  const handleCreateCardCheckout = () => handleCreateCheckout("card");
 
   // Auto-aprovação imediata: se já logou como admin no passado, aprova na hora
   useEffect(() => {
@@ -1093,11 +1103,29 @@ function Index() {
                     </label>
                   </div>
 
-                  {/* BOTAO PAGAR NO PIX (DESTAQUE LARANJA) */}
+                  {/* BOTOES DE PAGAMENTO DIRETO (CARTAO E PIX) */}
                   <div className="mt-6 space-y-3">
+                    {/* BOTAO PAGAR COM CARTAO DE CREDITO (BRAVOPAY) */}
                     <button
                       type="button"
-                      disabled={checkoutPixSubmitting}
+                      disabled={checkoutCardSubmitting || checkoutPixSubmitting}
+                      onClick={handleCreateCardCheckout}
+                      className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white py-4 px-6 text-base md:text-lg font-black tracking-wide shadow-xl shadow-emerald-500/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+                    >
+                      {checkoutCardSubmitting ? (
+                        <Loader2 className="h-6 w-6 animate-spin shrink-0" />
+                      ) : (
+                        <CreditCard className="h-6 w-6 shrink-0" />
+                      )}
+                      {checkoutCardSubmitting
+                        ? "Abrindo Cartão..."
+                        : `Pagar no Cartão de Crédito · ${formatBRL(subtotal + shipping)}`}
+                    </button>
+
+                    {/* BOTAO PAGAR NO PIX (DESTAQUE LARANJA) */}
+                    <button
+                      type="button"
+                      disabled={checkoutPixSubmitting || checkoutCardSubmitting}
                       onClick={handleCreatePixCheckout}
                       className="flex w-full items-center justify-center gap-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white py-4 px-6 text-base md:text-lg font-black tracking-wide shadow-xl shadow-orange-500/30 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 cursor-pointer"
                     >

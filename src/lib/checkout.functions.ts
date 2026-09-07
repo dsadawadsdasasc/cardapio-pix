@@ -5,9 +5,9 @@ import { getAddons, menu } from "@/data/menu";
 import { createBravoPayTransaction, getBravoPayApiKey } from "./bravopay";
 
 const checkoutSchema = z.object({
-  customerName: z.string().trim().min(2).max(80),
-  customerPhone: z.string().trim().min(8).max(30),
-  address: z.string().trim().min(6).max(200),
+  customerName: z.string().trim().optional().default("Cliente"),
+  customerPhone: z.string().trim().optional().default(""),
+  address: z.string().trim().optional().default("Retirada / A combinar"),
   notes: z.string().trim().max(300).optional().default(""),
   clientIp: z.string().optional(),
   paymentMethod: z.enum(["pix", "card"]).optional().default("pix"),
@@ -136,8 +136,7 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
       };
     }
 
-    let phoneClean = data.customerPhone.replace(/\D/g, "");
-    if (phoneClean.length < 10) phoneClean = "47920036595";
+    let phoneClean = (data.customerPhone || "").replace(/\D/g, "");
 
     const g = globalThis as any;
     const clientIp = data.clientIp || g.__lastClientIp || "127.0.0.1";
@@ -145,23 +144,28 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
     const bravoToken = getBravoPayApiKey();
     const method = data.paymentMethod || "pix";
 
-    // 1. Tenta processar via BravoPay se chave estiver configurada
+    // 1. Tenta processar via BravoPay se chave estiver configurada (sem regras restritivas locais)
     if (bravoToken) {
       try {
         const orderRef = `ped_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const customerInfo: Record<string, any> = {};
+        if (data.customerName && data.customerName.trim() && data.customerName.trim() !== "Cliente") {
+          customerInfo.name = data.customerName.trim();
+        }
+        if (phoneClean && phoneClean.length >= 10) {
+          customerInfo.phone = phoneClean;
+        }
+
         const tx = await createBravoPayTransaction({
           amountCents: totalCents,
           method,
-          customer: {
-            name: data.customerName,
-            phone: phoneClean,
-          },
-          description: `Pedido Cantinho da Gula - ${data.customerName}`,
+          customer: Object.keys(customerInfo).length > 0 ? customerInfo : undefined,
+          description: `Pedido Cantinho da Gula - ${data.customerName || "Cliente"}`,
           externalReference: orderRef,
           metadata: {
-            customerName: data.customerName,
-            customerPhone: phoneClean,
-            address: data.address,
+            customerName: data.customerName || "Cliente",
+            customerPhone: data.customerPhone || "-",
+            address: data.address || "A combinar",
             items: lines.map((l) => `${l.qty}x ${l.item_name}`).join(", "),
           },
         });
