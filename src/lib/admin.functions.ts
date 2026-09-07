@@ -1,6 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import {
+  createBravoPayTransaction,
+  getBravoPayAccount,
+  getBravoPayApiKey,
+  getBravoPayWebhookSecret,
+  setBravoPayApiKey,
+  setBravoPayWebhookSecret,
+} from "./bravopay";
+
 // Hashes SHA-256 das credenciais autorizadas (nunca expostas em texto puro)
 const AUTH_USER_HASH = "ca6ea21199201b73fbbf48c3544a8237a3f30b0604018976895d186aace793bb";
 const AUTH_PASS_HASH = "316ac5f24b1db45d78977a325f2b84951164c50140e610e05dfeb2193146ff76";
@@ -239,8 +248,103 @@ export const generateAdminPix = createServerFn({ method: "POST" })
     if (amount < 5) {
       return {
         ok: false as const,
-        error: "O valor mínimo para gerar Pix na AkadPay é de R$ 5,00.",
+        error: "O valor mínimo para gerar Pix é de R$ 5,00.",
       };
+    }
+
+    const bravoToken = getBravoPayApiKey();
+    if (bravoToken) {
+      try {
+        const depositId = `adm_bp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const tx = await createBravoPayTransaction({
+          amountCents: Math.round(amount * 100),
+          method: "pix",
+          customer: {
+            name: "Administrador Cantinho",
+            phone: "47920036595",
+          },
+          description: `Cobrança Pix Admin - R$ ${amount.toFixed(2)}`,
+          externalReference: depositId,
+        });
+
+        const copyPaste = tx.pix?.copy_paste ?? "";
+        const qrCodeImage =
+          tx.pix?.qr_code ||
+          (copyPaste
+            ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(copyPaste)}`
+            : "");
+
+        const g = globalThis as any;
+        const clientIp = g.__lastClientIp || "127.0.0.1";
+        const notesWithIp = `Cobrança Pix de R$ ${amount.toFixed(2)} gerada no painel BravoPay [IP: ${clientIp}]`;
+
+        const createdOrder = {
+          id: tx.id,
+          payment_reference: depositId,
+          customer_name: "Cobrança Pix (BravoPay)",
+          customer_phone: "-",
+          address: "Cobrança gerada no painel BravoPay",
+          notes: notesWithIp,
+          client_ip: clientIp,
+          subtotal_cents: Math.round(amount * 100),
+          shipping_cents: 0,
+          total_cents: Math.round(amount * 100),
+          payment_status: "unpaid",
+          payment_provider: "bravopay",
+          created_at: new Date().toISOString(),
+          paid_at: null,
+          pix_copy_paste: copyPaste,
+          pix_qr_base64: qrCodeImage,
+          order_items: [
+            {
+              id: `item_${Date.now()}`,
+              item_id: "pix_bravopay",
+              item_name: `Cobrança Pix BravoPay`,
+              qty: 1,
+              unit_price_cents: Math.round(amount * 100),
+              addons: [],
+              notes: null,
+            },
+          ],
+        };
+
+        g.__ordersStore = g.__ordersStore || [];
+        g.__ordersStore = [createdOrder, ...g.__ordersStore.filter((o: any) => o.id !== tx.id && o.id !== depositId)];
+
+        try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          await supabaseAdmin.from("orders").insert({
+            id: tx.id,
+            payment_reference: depositId,
+            customer_name: createdOrder.customer_name,
+            customer_phone: createdOrder.customer_phone,
+            address: createdOrder.address,
+            notes: createdOrder.notes,
+            subtotal_cents: createdOrder.subtotal_cents,
+            shipping_cents: createdOrder.shipping_cents,
+            total_cents: createdOrder.total_cents,
+            payment_status: createdOrder.payment_status,
+            payment_provider: createdOrder.payment_provider,
+            pix_copy_paste: copyPaste,
+            pix_qr_base64: qrCodeImage,
+          });
+        } catch {
+          /* fallback ignore */
+        }
+
+        return {
+          ok: true as const,
+          depositId: tx.id,
+          amount,
+          copyPaste,
+          qrCodeBase64: qrCodeImage,
+          clientIp,
+          status: "unpaid" as const,
+          provider: "bravopay" as const,
+        };
+      } catch (err: any) {
+        console.warn("[Admin Pix] BravoPay falhou, tentando AkadPay:", err);
+      }
     }
 
     try {
@@ -422,3 +526,63 @@ export const updateAdminOrderStatus = createServerFn({ method: "POST" })
 
     return { ok: true as const, orderId: data.orderId, paymentStatus: data.paymentStatus, paidAt };
   });
+
+export const getAdminGatewayConfig = createServerFn({ method: "POST" })
+  .validator((data: unknown) => z.object({ token: z.string().min(1) }).parse(data))
+  .handler(async ({ data }) => {
+    const authorized = await verifySessionToken(data.token);
+    if (!authorized) return { ok: false as const, error: "Não autorizado." };
+
+    const bravoKey = getBravoPayApiKey();
+    const bravoSecret = getBravoPayWebhookSecret();
+    return {
+      ok: true as const,
+      hasBravoKey: !!bravoKey,
+      bravoKeyPreview: bravoKey ? `${bravoKey.slice(0, 8)}...${bravoKey.slice(-4)}` : null,
+      hasBravoSecret: !!bravoSecret,
+      activeGateway: bravoKey ? "bravopay" : "akadpay",
+      webhookUrl: "https://cantinhodagula.online/api/public/bravopay",
+    };
+  });
+
+export const saveAdminGatewayConfig = createServerFn({ method: "POST" })
+  .validator(
+    (data: unknown) =>
+      z
+        .object({
+          token: z.string().min(1),
+          bravoKey: z.string().trim().optional(),
+          bravoWebhookSecret: z.string().trim().optional(),
+        })
+        .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const authorized = await verifySessionToken(data.token);
+    if (!authorized) return { ok: false as const, error: "Não autorizado." };
+
+    if (data.bravoKey !== undefined) {
+      setBravoPayApiKey(data.bravoKey);
+    }
+    if (data.bravoWebhookSecret !== undefined) {
+      setBravoPayWebhookSecret(data.bravoWebhookSecret);
+    }
+
+    let accountInfo = null;
+    if (data.bravoKey) {
+      try {
+        accountInfo = await getBravoPayAccount(data.bravoKey);
+      } catch (err: any) {
+        return {
+          ok: false as const,
+          error: `Chave salva, mas teste de conexão com BravoPay falhou: ${err?.message || err}`,
+        };
+      }
+    }
+
+    return {
+      ok: true as const,
+      message: "Configurações da BravoPay atualizadas com sucesso!",
+      accountInfo,
+    };
+  });
+

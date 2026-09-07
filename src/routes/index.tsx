@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, Copy, DollarSign, Globe, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Trash2, Truck, X } from "lucide-react";
-import { deleteAdminOrder, generateAdminPix, getAdminOrders, loginAdmin, updateAdminOrderStatus } from "@/lib/admin.functions";
+import { Check, Clock, Copy, CreditCard, DollarSign, ExternalLink, Globe, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Trash2, Truck, X } from "lucide-react";
+import { deleteAdminOrder, generateAdminPix, getAdminGatewayConfig, getAdminOrders, loginAdmin, saveAdminGatewayConfig, updateAdminOrderStatus } from "@/lib/admin.functions";
 
 import heroImg from "@/assets/hero.jpg";
 import logoImg from "@/assets/logo.png";
@@ -194,12 +194,30 @@ function Index() {
   const doUpdateOrderStatus = useServerFn(updateAdminOrderStatus);
   const doRegisterOrder = useServerFn(registerOrder);
   const doCreateCheckoutPix = useServerFn(createCheckoutPix);
+  const doGetGatewayConfig = useServerFn(getAdminGatewayConfig);
+  const doSaveGatewayConfig = useServerFn(saveAdminGatewayConfig);
+
+  const [gatewayConfig, setGatewayConfig] = useState<{
+    hasBravoKey: boolean;
+    bravoKeyPreview: string | null;
+    hasBravoSecret: boolean;
+    activeGateway: string;
+    webhookUrl: string;
+  } | null>(null);
+  const [bravoKeyInput, setBravoKeyInput] = useState("");
+  const [bravoSecretInput, setBravoSecretInput] = useState("");
+  const [gatewaySaving, setGatewaySaving] = useState(false);
+  const [gatewaySuccessMsg, setGatewaySuccessMsg] = useState<string | null>(null);
+  const [gatewayErrorMsg, setGatewayErrorMsg] = useState<string | null>(null);
+  const [webhookCopied, setWebhookCopied] = useState(false);
 
   const [checkoutPixModal, setCheckoutPixModal] = useState<{
     orderId: string;
     amount: number;
     copyPaste: string;
     qrCodeUrl: string;
+    cardUrl?: string | null;
+    provider?: string;
   } | null>(null);
   const [checkoutPixSubmitting, setCheckoutPixSubmitting] = useState(false);
   const [checkoutPixError, setCheckoutPixError] = useState<string | null>(null);
@@ -266,8 +284,10 @@ function Index() {
         setCheckoutPixModal({
           orderId: res.orderId,
           amount: res.amount,
-          copyPaste: res.copyPaste,
-          qrCodeUrl: res.qrCodeUrl,
+          copyPaste: res.copyPaste || "",
+          qrCodeUrl: res.qrCodeUrl || "",
+          cardUrl: (res as any).cardUrl || null,
+          provider: (res as any).provider || "bravopay",
         });
         setCheckoutPixPaid(false);
         trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
@@ -285,11 +305,11 @@ function Index() {
               shipping_cents: 0,
               total_cents: Math.round(subtotal * 100),
               payment_status: "unpaid",
-              payment_provider: "akadpay",
+              payment_provider: (res as any).provider || "bravopay",
               created_at: new Date().toISOString(),
               paid_at: null,
-              pix_copy_paste: res.copyPaste,
-              pix_qr_base64: res.qrCodeUrl,
+              pix_copy_paste: res.copyPaste || "",
+              pix_qr_base64: res.qrCodeUrl || "",
               order_items: detailed.map((d, i) => ({
                 id: `item_${i}_${Date.now()}`,
                 item_id: d.item.id,
@@ -423,10 +443,22 @@ function Index() {
   } | null>(null);
   const [genPixCopied, setGenPixCopied] = useState(false);
 
+  const loadGatewayConfig = async (token?: string) => {
+    const t = token || adminAuth?.token;
+    if (!t) return;
+    try {
+      const res = await doGetGatewayConfig({ data: { token: t } });
+      if (res.ok) {
+        setGatewayConfig(res);
+      }
+    } catch {}
+  };
+
   const loadSalesOrders = async (auth = adminAuth) => {
     if (!auth?.token) return;
     setLoadingAdminOrders(true);
     setAdminOrdersError(null);
+    loadGatewayConfig(auth.token);
     try {
       const res = await fetchAdminOrders({
         data: { token: auth.token },
@@ -1336,7 +1368,152 @@ function Index() {
                   </div>
                 </div>
 
-                {/* GERADOR DE CÓDIGOS PIX AKADPAY */}
+                {/* CONFIGURAÇÃO GATEWAY BRAVOPAY */}
+                <div className="mt-8 rounded-2xl border border-border bg-card p-6 shadow-md">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-lime-400/15 text-lime-400">
+                        <CreditCard className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold text-foreground">Gateway BravoPay</h3>
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${
+                              gatewayConfig?.hasBravoKey
+                                ? "bg-lime-400/15 text-lime-400 border-lime-400/30"
+                                : "bg-amber-500/15 text-amber-500 border-amber-500/30"
+                            }`}
+                          >
+                            {gatewayConfig?.hasBravoKey ? "✓ Conectado" : "Aguardando Chave"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Processamento automático de pagamentos via Pix e Cartão pela BravoPay.
+                        </p>
+                      </div>
+                    </div>
+
+                    <a
+                      href="https://bravopay.club/dashboard/api-keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-lime-400 hover:text-lime-300 transition-colors"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Acessar BravoPay
+                    </a>
+                  </div>
+
+                  {/* Caixa para copiar URL de Webhook */}
+                  <div className="mt-4 rounded-xl border border-border bg-secondary/50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        URL de Webhook para cadastrar na BravoPay (Dashboard → Integrações):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const url = "https://cantinhodagula.online/api/public/bravopay";
+                          await navigator.clipboard.writeText(url);
+                          setWebhookCopied(true);
+                          setTimeout(() => setWebhookCopied(false), 3000);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg bg-background px-2.5 py-1 text-xs font-bold text-foreground border border-border hover:bg-secondary transition-colors cursor-pointer"
+                      >
+                        {webhookCopied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                        {webhookCopied ? "Copiado!" : "Copiar URL"}
+                      </button>
+                    </div>
+                    <code className="mt-1.5 block font-mono text-xs text-foreground select-all break-all">
+                      https://cantinhodagula.online/api/public/bravopay
+                    </code>
+                  </div>
+
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!adminAuth?.token) return;
+                      setGatewaySaving(true);
+                      setGatewaySuccessMsg(null);
+                      setGatewayErrorMsg(null);
+                      try {
+                        const res = await doSaveGatewayConfig({
+                          data: {
+                            token: adminAuth.token,
+                            bravoKey: bravoKeyInput.trim() || undefined,
+                            bravoWebhookSecret: bravoSecretInput.trim() || undefined,
+                          },
+                        });
+                        if (res.ok) {
+                          setGatewaySuccessMsg(res.message || "Configurações da BravoPay salvas com sucesso!");
+                          await loadGatewayConfig(adminAuth.token);
+                          setBravoKeyInput("");
+                          setBravoSecretInput("");
+                        } else {
+                          setGatewayErrorMsg(res.error || "Erro ao salvar configurações.");
+                        }
+                      } catch (err: any) {
+                        setGatewayErrorMsg(err?.message || "Erro de conexão ao salvar credenciais.");
+                      } finally {
+                        setGatewaySaving(false);
+                      }
+                    }}
+                    className="mt-4 space-y-3"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm">
+                        <span className="text-muted-foreground font-medium text-xs">
+                          BravoPay API Key (bp_live_...)
+                        </span>
+                        <input
+                          type="password"
+                          value={bravoKeyInput}
+                          onChange={(e) => setBravoKeyInput(e.target.value)}
+                          placeholder={gatewayConfig?.bravoKeyPreview || "bp_live_..."}
+                          className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm font-mono outline-none focus:border-lime-400"
+                        />
+                      </label>
+
+                      <label className="block text-sm">
+                        <span className="text-muted-foreground font-medium text-xs">
+                          Webhook Secret (whsec_...) - Opcional
+                        </span>
+                        <input
+                          type="password"
+                          value={bravoSecretInput}
+                          onChange={(e) => setBravoSecretInput(e.target.value)}
+                          placeholder={gatewayConfig?.hasBravoSecret ? "Configurado (whsec_...)" : "whsec_..."}
+                          className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm font-mono outline-none focus:border-lime-400"
+                        />
+                      </label>
+                    </div>
+
+                    {gatewaySuccessMsg && (
+                      <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-500">
+                        ✓ {gatewaySuccessMsg}
+                      </p>
+                    )}
+                    {gatewayErrorMsg && (
+                      <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
+                        ✕ {gatewayErrorMsg}
+                      </p>
+                    )}
+
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={gatewaySaving || (!bravoKeyInput && !bravoSecretInput)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-lime-400 px-5 py-2.5 text-xs font-bold text-black transition-opacity hover:bg-lime-300 disabled:opacity-50 cursor-pointer"
+                      >
+                        {gatewaySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                        Salvar e Conectar BravoPay
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* GERADOR DE CÓDIGOS PIX */}
                 <div className="mt-8 rounded-2xl border border-primary/30 bg-card p-6 shadow-md">
                   <div className="flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
@@ -1563,6 +1740,24 @@ function Index() {
                               </div>
 
                               <div className="flex items-center gap-2">
+                                {order.payment_provider && (
+                                  <span
+                                    className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                      order.payment_provider === "bravopay"
+                                        ? "bg-lime-400/15 text-lime-400 border border-lime-400/30"
+                                        : order.payment_provider === "akadpay"
+                                        ? "bg-purple-500/15 text-purple-400 border border-purple-500/30"
+                                        : "bg-secondary text-muted-foreground border border-border"
+                                    }`}
+                                  >
+                                    {order.payment_provider === "bravopay"
+                                      ? "BravoPay"
+                                      : order.payment_provider === "akadpay"
+                                      ? "AkadPay"
+                                      : "WhatsApp"}
+                                  </span>
+                                )}
+
                                 <span
                                   className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
                                     isPaid
@@ -1840,6 +2035,23 @@ function Index() {
                     {checkoutPixCopied ? "Chave Pix Copiada com Sucesso!" : "Copiar Chave Pix Copia e Cola"}
                   </button>
                 </div>
+
+                {checkoutPixModal.cardUrl && (
+                  <div className="mt-4 p-3.5 rounded-2xl border border-lime-400/30 bg-lime-400/5 text-center">
+                    <p className="text-xs font-semibold text-foreground">
+                      Prefere pagar com Cartão de Crédito?
+                    </p>
+                    <a
+                      href={checkoutPixModal.cardUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lime-400 hover:bg-lime-300 text-black py-2.5 px-4 text-xs font-bold shadow-sm transition-all"
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      Pagar com Cartão pela BravoPay
+                    </a>
+                  </div>
+                )}
 
                 <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs font-medium text-amber-500">
                   <Loader2 className="h-4 w-4 animate-spin shrink-0" />

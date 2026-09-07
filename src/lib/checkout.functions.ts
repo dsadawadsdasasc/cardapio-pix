@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { getAddons, menu } from "@/data/menu";
+import { createBravoPayTransaction, getBravoPayApiKey } from "./bravopay";
 
 const checkoutSchema = z.object({
   customerName: z.string().trim().min(2).max(80),
@@ -9,6 +10,7 @@ const checkoutSchema = z.object({
   address: z.string().trim().min(6).max(200),
   notes: z.string().trim().max(300).optional().default(""),
   clientIp: z.string().optional(),
+  paymentMethod: z.enum(["pix", "card"]).optional().default("pix"),
   items: z
     .array(
       z.object({
@@ -134,15 +136,134 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
       };
     }
 
-    const akadToken = process.env["AKADPAY_TOKEN"] || "ci_leandro_7539cf2b-30c9-4603-a38f-6dff97e73e0e";
-    const akadSecret = process.env["AKADPAY_SECRET"] || "cs_leandro_0a09284e-5317-41fe-adca-2a35a0e00dfc";
-
     let phoneClean = data.customerPhone.replace(/\D/g, "");
     if (phoneClean.length < 10) phoneClean = "47920036595";
 
     const g = globalThis as any;
     const clientIp = data.clientIp || g.__lastClientIp || "127.0.0.1";
     const notesWithIp = `${data.notes ? data.notes + " | " : ""}[IP: ${clientIp}]`;
+    const bravoToken = getBravoPayApiKey();
+    const method = data.paymentMethod || "pix";
+
+    // 1. Tenta processar via BravoPay se chave estiver configurada
+    if (bravoToken) {
+      try {
+        const orderRef = `ped_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const tx = await createBravoPayTransaction({
+          amountCents: totalCents,
+          method,
+          customer: {
+            name: data.customerName,
+            phone: phoneClean,
+          },
+          description: `Pedido Cantinho da Gula - ${data.customerName}`,
+          externalReference: orderRef,
+          metadata: {
+            customerName: data.customerName,
+            customerPhone: phoneClean,
+            address: data.address,
+            items: lines.map((l) => `${l.qty}x ${l.item_name}`).join(", "),
+          },
+        });
+
+        const orderId = tx.id || orderRef;
+        const copyPaste = tx.pix?.copy_paste || "";
+        const qrCodeUrl =
+          tx.pix?.qr_code ||
+          (copyPaste
+            ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(copyPaste)}`
+            : "");
+        const cardUrl = tx.card?.hosted_url || null;
+
+        // Salva no Supabase se configurado
+        try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data: order } = await supabaseAdmin
+            .from("orders")
+            .insert({
+              id: orderId,
+              payment_reference: orderRef,
+              customer_name: data.customerName,
+              customer_phone: data.customerPhone,
+              address: data.address,
+              notes: notesWithIp,
+              subtotal_cents: subtotalCents,
+              shipping_cents: shippingCents,
+              total_cents: totalCents,
+              payment_provider: "bravopay",
+              payment_status: "unpaid",
+              pix_copy_paste: copyPaste,
+              pix_qr_base64: qrCodeUrl,
+            })
+            .select("id")
+            .single();
+
+          if (order?.id) {
+            await supabaseAdmin
+              .from("order_items")
+              .insert(lines.map((l) => ({ ...l, order_id: orderId })));
+          }
+        } catch {
+          /* fallback */
+        }
+
+        // Registra o pedido no armazenamento em memória para o painel ADM
+        g.__ordersStore = g.__ordersStore || [];
+        const memoryOrder = {
+          id: orderId,
+          payment_reference: orderRef,
+          customer_name: data.customerName,
+          customer_phone: data.customerPhone,
+          address: data.address,
+          notes: data.notes || null,
+          client_ip: clientIp,
+          subtotal_cents: subtotalCents,
+          shipping_cents: shippingCents,
+          total_cents: totalCents,
+          payment_status: "unpaid",
+          payment_provider: "bravopay",
+          created_at: new Date().toISOString(),
+          paid_at: null,
+          pix_copy_paste: copyPaste,
+          pix_qr_base64: qrCodeUrl,
+          card_url: cardUrl,
+          order_items: lines.map((l, idx) => ({
+            id: `item_${idx}_${Date.now()}`,
+            item_id: l.item_id,
+            item_name: l.item_name,
+            qty: l.qty,
+            unit_price_cents: l.unit_price_cents,
+            addons: l.addons,
+            notes: l.notes,
+          })),
+        };
+        g.__ordersStore = [memoryOrder, ...g.__ordersStore.filter((o: any) => o.id !== orderId && o.id !== orderRef)];
+
+        return {
+          ok: true as const,
+          orderId,
+          orderRef,
+          amount,
+          copyPaste,
+          qrCodeUrl,
+          cardUrl,
+          method,
+          provider: "bravopay" as const,
+        };
+      } catch (bravoErr: any) {
+        console.error("[BravoPay] Falha ao criar transação:", bravoErr);
+        if (method === "card") {
+          return {
+            ok: false as const,
+            error: `Erro ao gerar cobrança de cartão na BravoPay: ${bravoErr?.message || bravoErr}`,
+          };
+        }
+      }
+    }
+
+    // 2. Fallback para AkadPay (Pix)
+    const akadToken = process.env["AKADPAY_TOKEN"] || "ci_leandro_7539cf2b-30c9-4603-a38f-6dff97e73e0e";
+    const akadSecret = process.env["AKADPAY_SECRET"] || "cs_leandro_0a09284e-5317-41fe-adca-2a35a0e00dfc";
 
     try {
       const res = await fetch("https://painel.akadpay.com.br/api/wallet/deposit/payment", {
@@ -244,6 +365,7 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
         amount,
         copyPaste,
         qrCodeUrl,
+        provider: "akadpay" as const,
       };
     } catch (err: any) {
       return {

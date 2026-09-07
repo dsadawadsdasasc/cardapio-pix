@@ -47,6 +47,9 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      if (env && typeof env === "object") {
+        Object.assign(process.env, env);
+      }
       const url = new URL(request.url);
       const clientIp =
         request.headers.get("cf-connecting-ip") ||
@@ -206,6 +209,97 @@ export default {
           });
         } catch {
           return new Response(JSON.stringify({ ok: false }), { status: 400 });
+        }
+      }
+
+      // Webhook automático da BravoPay (PIX e Cartão)
+      if (
+        request.method === "POST" &&
+        (url.pathname === "/api/public/bravopay" || url.pathname === "/api/webhook/bravopay")
+      ) {
+        try {
+          const rawBody = await request.text();
+          const sigHeader =
+            request.headers.get("bravopay-signature") ||
+            request.headers.get("x-bravopay-signature");
+
+          const { verifyBravoPayWebhook } = await import("./lib/bravopay");
+          const isValid = verifyBravoPayWebhook(rawBody, sigHeader);
+          if (!isValid) {
+            console.warn("[BravoPay Webhook] Assinatura inválida rejeitada.");
+            return new Response(JSON.stringify({ error: "Assinatura inválida" }), {
+              status: 401,
+              headers: { "content-type": "application/json" },
+            });
+          }
+
+          let body: any = {};
+          try {
+            body = JSON.parse(rawBody);
+          } catch {
+            return new Response(JSON.stringify({ error: "JSON inválido" }), { status: 400 });
+          }
+
+          const eventType = body?.type || "";
+          const txData = body?.data || body;
+          const txId = txData?.id;
+          const externalRef = txData?.external_reference;
+          const rawStatus = (txData?.status || body?.status || "").toUpperCase();
+
+          const isPaid =
+            eventType === "transaction.paid" ||
+            rawStatus === "PAID" ||
+            rawStatus === "CONFIRMED" ||
+            rawStatus === "COMPLETED";
+
+          if (isPaid && (txId || externalRef)) {
+            const g = globalThis as any;
+            if (Array.isArray(g.__ordersStore)) {
+              g.__ordersStore = g.__ordersStore.map((o: any) => {
+                const matchTx = txId && (o.id === txId || o.payment_reference === txId);
+                const matchRef = externalRef && (o.id === externalRef || o.payment_reference === externalRef);
+                if (matchTx || matchRef) {
+                  return {
+                    ...o,
+                    payment_status: "paid",
+                    status: "confirmed",
+                    paid_at: new Date().toISOString(),
+                  };
+                }
+                return o;
+              });
+            }
+
+            try {
+              const { supabaseAdmin } = await import("./integrations/supabase/client.server");
+              const filterParts = [];
+              if (txId) {
+                filterParts.push(`id.eq.${txId}`, `payment_reference.eq.${txId}`);
+              }
+              if (externalRef) {
+                filterParts.push(`id.eq.${externalRef}`, `payment_reference.eq.${externalRef}`);
+              }
+              await supabaseAdmin
+                .from("orders")
+                .update({
+                  payment_status: "paid",
+                  status: "confirmed",
+                  paid_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .or(filterParts.join(","));
+            } catch (err) {
+              console.warn("[BravoPay Webhook] Supabase update warning:", err);
+            }
+          }
+
+          return new Response(JSON.stringify({ ok: true, received: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        } catch (err: any) {
+          console.error("[BravoPay Webhook] Erro:", err);
+          return new Response(JSON.stringify({ ok: false, error: err?.message }), { status: 400 });
         }
       }
 
