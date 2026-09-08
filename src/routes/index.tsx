@@ -556,7 +556,7 @@ function Index() {
         trackPixelEvent("AddPaymentInfo", { value: subtotal, currency: "BRL" });
         window.location.href = (res as any).cardUrl;
       } else {
-        alert((res as any).error || "Não foi possível abrir o checkout de cartão da BravoPay.");
+        alert((res as any).error || "Não foi possível abrir o checkout de cartão da Appmax.");
         setCheckoutCardSubmitting(false);
       }
     } catch (err: any) {

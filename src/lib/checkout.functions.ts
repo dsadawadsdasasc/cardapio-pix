@@ -144,7 +144,97 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
     const bravoToken = getBravoPayApiKey();
     const method = data.paymentMethod || "pix";
 
-    // 1. Tenta processar via BravoPay se chave estiver configurada (sem regras restritivas locais)
+    // 1. Pagamento no Cartão: Roteado 100% para Appmax (BravoPay desativada para cartão)
+    if (method === "card") {
+      const orderRef = `ped_card_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const desc = `Pedido Cantinho da Gula - ${data.customerName || "Cliente"} - R$ ${amount.toFixed(2)}`;
+
+      const { createAppmaxPaymentLink } = await import("./appmax");
+      const appmaxRes = await createAppmaxPaymentLink({
+        amount,
+        description: desc,
+        referenceId: orderRef,
+        customerName: data.customerName,
+        customerPhone: phoneClean,
+      });
+
+      const orderId = orderRef;
+      const cardUrl = appmaxRes.paymentUrl;
+
+      // Salva no Supabase se configurado
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { data: order } = await supabaseAdmin
+          .from("orders")
+          .insert({
+            id: orderId,
+            payment_reference: orderRef,
+            customer_name: data.customerName,
+            customer_phone: data.customerPhone,
+            address: data.address,
+            notes: notesWithIp,
+            subtotal_cents: subtotalCents,
+            shipping_cents: shippingCents,
+            total_cents: totalCents,
+            payment_provider: "appmax",
+            payment_status: "unpaid",
+            card_url: cardUrl,
+          })
+          .select("id")
+          .single();
+
+        if (order?.id) {
+          await supabaseAdmin
+            .from("order_items")
+            .insert(lines.map((l) => ({ ...l, order_id: orderId })));
+        }
+      } catch {
+        /* fallback */
+      }
+
+      // Registra o pedido no armazenamento em memória para o painel ADM
+      g.__ordersStore = g.__ordersStore || [];
+      const memoryOrder = {
+        id: orderId,
+        payment_reference: orderRef,
+        customer_name: data.customerName,
+        customer_phone: data.customerPhone,
+        address: data.address,
+        notes: data.notes || null,
+        client_ip: clientIp,
+        subtotal_cents: subtotalCents,
+        shipping_cents: shippingCents,
+        total_cents: totalCents,
+        payment_status: "unpaid",
+        payment_provider: "appmax",
+        payment_method: "card",
+        created_at: new Date().toISOString(),
+        paid_at: null,
+        card_url: cardUrl,
+        order_items: lines.map((l, idx) => ({
+          id: `item_${idx}_${Date.now()}`,
+          item_id: l.item_id,
+          item_name: l.item_name,
+          qty: l.qty,
+          unit_price_cents: l.unit_price_cents,
+          addons: l.addons,
+          notes: l.notes,
+        })),
+      };
+      g.__ordersStore = [memoryOrder, ...g.__ordersStore.filter((o: any) => o.id !== orderId)];
+
+      return {
+        ok: true as const,
+        orderId,
+        amount,
+        cardUrl,
+        copyPaste: "",
+        qrCodeUrl: "",
+        provider: "appmax" as const,
+      };
+    }
+
+    // 2. Pagamento no Pix: Processa via BravoPay (com chave oficial bp_live_...)
     if (bravoToken) {
       try {
         const orderRef = `ped_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -158,7 +248,7 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
 
         const tx = await createBravoPayTransaction({
           amountCents: totalCents,
-          method,
+          method: "pix",
           productId: "cmtrxfror000904k1h0tljw6i",
           customer: Object.keys(customerInfo).length > 0 ? customerInfo : undefined,
           description: `Pedido Cantinho da Gula - ${data.customerName || "Cliente"}`,
@@ -431,35 +521,6 @@ export const processCardPayment = createServerFn({ method: "POST" })
     const cardLast4 = cleanNum.slice(-4) || "0000";
     const paidAt = new Date().toISOString();
 
-    // Notifica BravoPay sobre a transação se chave estiver configurada
-    const bravoToken = getBravoPayApiKey();
-    if (bravoToken) {
-      try {
-        await createBravoPayTransaction({
-          amountCents: totalCents,
-          method: "card",
-          customer: {
-            name: data.cardHolderName || data.customerName,
-            phone: data.customerPhone.replace(/\D/g, "") || undefined,
-            cpf: data.cardCpf?.replace(/\D/g, "") || undefined,
-          },
-          description: `Pedido Cantinho da Gula - ${data.customerName || "Cliente"} (${cardBrand} ****${cardLast4})`,
-          externalReference: orderRef,
-          metadata: {
-            brand: cardBrand,
-            last4: cardLast4,
-            installments: data.installments,
-            customerName: data.customerName || "Cliente",
-            customerPhone: data.customerPhone || "-",
-            address: data.address || "A combinar",
-            items: lines.map((l) => `${l.qty}x ${l.item_name}`).join(", "),
-          },
-        });
-      } catch (err: any) {
-        console.warn("[BravoPay] Registro de transação de cartão:", err?.message || err);
-      }
-    }
-
     // Salva no Supabase se configurado
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -473,7 +534,7 @@ export const processCardPayment = createServerFn({ method: "POST" })
         subtotal_cents: subtotalCents,
         shipping_cents: shippingCents,
         total_cents: totalCents,
-        payment_provider: "bravopay",
+        payment_provider: "appmax",
         payment_status: "paid",
         paid_at: paidAt,
       });
@@ -499,7 +560,7 @@ export const processCardPayment = createServerFn({ method: "POST" })
       shipping_cents: shippingCents,
       total_cents: totalCents,
       payment_status: "paid",
-      payment_provider: "bravopay",
+      payment_provider: "appmax",
       payment_method: "card",
       created_at: paidAt,
       paid_at: paidAt,
@@ -528,7 +589,7 @@ export const processCardPayment = createServerFn({ method: "POST" })
       installments: data.installments,
       status: "paid" as const,
       paidAt,
-      provider: "bravopay" as const,
+      provider: "appmax" as const,
     };
   });
 
