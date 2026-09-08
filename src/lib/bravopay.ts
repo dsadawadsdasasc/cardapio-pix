@@ -38,13 +38,15 @@ export interface BravoPayTransactionResponse {
   created_at?: string;
 }
 
-export function getBravoPayApiKey(): string | null {
+const DEFAULT_BRAVOPAY_KEY = "bp_live_d_008woekP3rxMwLqGoIp-gA_Mn146RcGohO-w";
+
+export function getBravoPayApiKey(): string {
   const g = globalThis as any;
   return (
     g.__bravoPayApiKey ||
     process.env["BRAVOPAY_API_KEY"] ||
     process.env["BRAVOPAY_TOKEN"] ||
-    null
+    DEFAULT_BRAVOPAY_KEY
   );
 }
 
@@ -132,7 +134,13 @@ export async function createBravoPayTransaction(
   const json = (await res.json().catch(() => ({}))) as any;
 
   if (!res.ok || json?.error) {
+    const details = json?.error?.details
+      ? Object.entries(json.error.details)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join(" | ")
+      : "";
     const errMsg =
+      (details ? `${json?.error?.message || json?.message || "Erro de validação"}: ${details}` : null) ||
       json?.error?.message ||
       json?.message ||
       `Erro BravoPay (${res.status}): Não foi possível processar a cobrança.`;

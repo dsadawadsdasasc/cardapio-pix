@@ -12,6 +12,9 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  "vars": {
+    "BRAVOPAY_API_KEY": "bp_live_d_008woekP3rxMwLqGoIp-gA_Mn146RcGohO-w"
+  },
   "no_bundle": true,
   "rules": [
     {

@@ -2372,13 +2372,64 @@ function Index() {
                   </button>
                 </div>
               </div>
+            ) : checkoutPixModal.cardUrl && !checkoutPixModal.copyPaste ? (
+              <div>
+                <div className="flex items-center justify-center gap-2 text-emerald-500">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15">
+                    <CreditCard className="h-5 w-5" />
+                  </span>
+                  <h3 className="text-xl font-extrabold text-foreground">Pagamento no Cartão</h3>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Seu checkout seguro da BravoPay / Stripe Elements está pronto!
+                </p>
+
+                <div className="mt-4 rounded-2xl bg-secondary/50 p-3 text-center">
+                  <span className="text-xs text-muted-foreground">Valor a pagar:</span>
+                  <p className="text-2xl font-black text-emerald-500">
+                    {formatBRL(checkoutPixModal.amount)}
+                  </p>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  <a
+                    href={checkoutPixModal.cardUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white py-3.5 px-6 font-bold shadow-lg shadow-emerald-500/25 transition-all text-sm"
+                  >
+                    <CreditCard className="h-5 w-5" />
+                    Ir para Pagamento com Cartão
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (checkoutPixModal.cardUrl) {
+                        navigator.clipboard.writeText(checkoutPixModal.cardUrl);
+                        setCheckoutPixCopied(true);
+                        setTimeout(() => setCheckoutPixCopied(false), 3000);
+                      }
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary hover:bg-secondary/80 py-2.5 px-4 text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                  >
+                    {checkoutPixCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    {checkoutPixCopied ? "Link Copiado!" : "Copiar Link de Pagamento"}
+                  </button>
+                </div>
+
+                <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs font-medium text-amber-500">
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                  <span>Aguardando confirmação do pagamento... O status atualiza automaticamente.</span>
+                </div>
+              </div>
             ) : (
               <div>
                 <div className="flex items-center justify-center gap-2 text-orange-500">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-500/15">
                     <QrCode className="h-5 w-5" />
                   </span>
-                  <h3 className="text-xl font-extrabold text-foreground">Pagamento no Pix</h3>
+                  <h3 className="text-xl font-extrabold text-foreground">Pagamento no Pix (BravoPay)</h3>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Escaneie o QR Code ou copie o código Pix abaixo:
@@ -2395,7 +2446,7 @@ function Index() {
                   <div className="mt-4 flex justify-center">
                     <img
                       src={checkoutPixModal.qrCodeUrl}
-                      alt="QR Code Pix"
+                      alt="QR Code Pix BravoPay"
                       className="h-52 w-52 rounded-2xl border border-border bg-white p-2 shadow-sm"
                     />
                   </div>
