@@ -525,7 +525,45 @@ function Index() {
     }
   };
 
-  const handleCreateCardCheckout = () => handleOpenCardModal();
+  const handleCreateCardCheckout = async () => {
+    if (detailed.length === 0) {
+      alert("Seu carrinho está vazio.");
+      return;
+    }
+    setCheckoutPixError(null);
+    setCheckoutCardSubmitting(true);
+    const clientIpDetected = clientIp || "127.0.0.1";
+    try {
+      const res = await doCreateCheckoutPix({
+        data: {
+          customerName: form.name.trim() || "Cliente",
+          customerPhone: form.phone.trim() || "",
+          address: form.address.trim() || "Entrega / Retirada a combinar",
+          notes: form.notes.trim() || "",
+          clientIp: clientIpDetected,
+          paymentMethod: "card",
+          items: detailed.map((d) => ({
+            itemId: d.item.id,
+            qty: d.line.qty,
+            addonIds: d.addons.map((a) => a.id),
+            notes: d.line.notes || "",
+          })),
+        },
+      });
+
+      if (res.ok && (res as any).cardUrl) {
+        trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
+        trackPixelEvent("AddPaymentInfo", { value: subtotal, currency: "BRL" });
+        window.location.href = (res as any).cardUrl;
+      } else {
+        alert((res as any).error || "Não foi possível abrir o checkout de cartão da BravoPay.");
+        setCheckoutCardSubmitting(false);
+      }
+    } catch (err: any) {
+      alert(err?.message || "Erro ao conectar com o serviço de cartão.");
+      setCheckoutCardSubmitting(false);
+    }
+  };
 
   // Auto-aprovação imediata: se já logou como admin no passado, aprova na hora
   useEffect(() => {
@@ -2605,291 +2643,6 @@ function Index() {
                     Já pagou? Enviar comprovante no WhatsApp
                   </a>
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* MODAL CHECKOUT TRANSPARENTE DE CARTÃO NO PRÓPRIO SITE */}
-      {cardModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setCardModalOpen(false);
-                setCardError(null);
-              }}
-              className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
-              aria-label="Fechar"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            {cardSuccessOrder ? (
-              <div className="py-6 text-center">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-500 animate-bounce">
-                  <Check className="h-10 w-10 stroke-[3]" />
-                </div>
-                <h3 className="mt-4 text-2xl font-black text-foreground">Pagamento Aprovado!</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Recebemos seu pagamento de <strong className="text-emerald-500 font-extrabold">{formatBRL(cardSuccessOrder.amount)}</strong> via{" "}
-                  <strong>Cartão de Crédito ({cardSuccessOrder.brand} final {cardSuccessOrder.last4})</strong> em {cardSuccessOrder.installments}x!
-                </p>
-
-                <div className="mt-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-left space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Status:</span>
-                    <span className="font-bold text-emerald-500 uppercase tracking-wide">✓ Aprovado Imediatamente</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Código do Pedido:</span>
-                    <span className="font-mono font-bold text-foreground">#{cardSuccessOrder.orderId.slice(0, 10)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Forma de Pagamento:</span>
-                    <span className="font-medium text-foreground">{cardSuccessOrder.brand} •••• {cardSuccessOrder.last4} ({cardSuccessOrder.installments}x)</span>
-                  </div>
-                  <div className="flex justify-between text-xs border-t border-emerald-500/20 pt-1.5 font-bold">
-                    <span className="text-foreground">Total Pago:</span>
-                    <span className="text-emerald-500">{formatBRL(cardSuccessOrder.amount)}</span>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex flex-col gap-3">
-                  <a
-                    href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-                      `Olá! Acabei de pagar meu pedido #${cardSuccessOrder.orderId.slice(0, 8)} no valor de ${formatBRL(
-                        cardSuccessOrder.amount,
-                      )} com Cartão de Crédito (${cardSuccessOrder.brand} final ${cardSuccessOrder.last4})! Aguardo a entrega!`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white py-3.5 px-6 font-bold shadow-md transition-transform active:scale-95 text-sm cursor-pointer"
-                  >
-                    <MessageCircle className="h-5 w-5 fill-current" />
-                    Acompanhar pelo WhatsApp
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCardModalOpen(false);
-                      setCardSuccessOrder(null);
-                      setTab("cardapio");
-                    }}
-                    className="w-full rounded-2xl border border-border bg-secondary py-3 text-sm font-semibold hover:bg-secondary/80 transition-colors cursor-pointer"
-                  >
-                    Voltar ao Cardápio
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-500">
-                    <CreditCard className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <h3 className="text-lg font-bold text-foreground">Pagamento no Cartão</h3>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Lock className="h-3 w-3 text-emerald-500" />
-                      Checkout 100% seguro com aprovação imediata no site
-                    </p>
-                  </div>
-                </div>
-
-                {/* CARTÃO VIRTUAL INTERATIVO */}
-                <div className="relative mt-5 overflow-hidden rounded-2xl bg-gradient-to-tr from-zinc-900 via-neutral-900 to-zinc-800 p-5 text-white shadow-xl border border-white/10">
-                  <div className="flex items-center justify-between">
-                    {/* CHIP DOURADO */}
-                    <div className="flex items-center gap-2">
-                      <div className="h-7 w-9 rounded-md bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 border border-yellow-200/50 shadow-inner flex items-center justify-center">
-                        <div className="w-5 h-4 border border-black/20 rounded-sm" />
-                      </div>
-                      <span className="text-[10px] tracking-widest text-zinc-400 font-mono">APROVAÇÃO ONLINE</span>
-                    </div>
-                    {/* BANDEIRA DO CARTÃO */}
-                    <span className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-black tracking-wider uppercase backdrop-blur">
-                      {getCardBrand(cardForm.number)}
-                    </span>
-                  </div>
-
-                  <div className="mt-6">
-                    <span className="text-[10px] uppercase tracking-widest text-zinc-400 block font-mono">Número do Cartão</span>
-                    <p className="font-mono text-lg sm:text-xl font-bold tracking-widest text-zinc-100 mt-0.5 select-none">
-                      {cardForm.number || "•••• •••• •••• ••••"}
-                    </p>
-                  </div>
-
-                  <div className="mt-4 flex items-end justify-between text-xs">
-                    <div>
-                      <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-mono">Titular</span>
-                      <p className="font-semibold uppercase tracking-wide truncate max-w-[190px]">
-                        {cardForm.holderName || "NOME DO TITULAR"}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-mono">Validade</span>
-                      <p className="font-mono font-semibold">{cardForm.expiry || "MM/AA"}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* FORMULÁRIO DO CARTÃO */}
-                <form onSubmit={handleSubmitCardPayment} className="mt-5 space-y-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground">
-                      Número do Cartão de Crédito
-                    </label>
-                    <div className="relative mt-1">
-                      <CreditCard className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={cardForm.number}
-                        onChange={(e) =>
-                          setCardForm({ ...cardForm, number: formatCardNumber(e.target.value) })
-                        }
-                        placeholder="0000 0000 0000 0000"
-                        maxLength={19}
-                        className="w-full rounded-xl border border-border bg-background pl-10 pr-3.5 py-2.5 text-sm font-mono font-bold outline-none focus:border-emerald-500 transition-colors"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground">
-                      Nome Impresso no Cartão
-                    </label>
-                    <input
-                      type="text"
-                      value={cardForm.holderName}
-                      onChange={(e) =>
-                        setCardForm({ ...cardForm, holderName: e.target.value.toUpperCase() })
-                      }
-                      placeholder="COMO IMPRESSO NO CARTÃO"
-                      className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-semibold uppercase outline-none focus:border-emerald-500 transition-colors"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground">
-                        CPF do Titular
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={cardForm.cpf}
-                        onChange={(e) =>
-                          setCardForm({ ...cardForm, cpf: formatCpf(e.target.value) })
-                        }
-                        placeholder="000.000.000-00"
-                        maxLength={14}
-                        className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-mono outline-none focus:border-emerald-500 transition-colors"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground">
-                        Validade (Mês/Ano)
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={cardForm.expiry}
-                        onChange={(e) =>
-                          setCardForm({ ...cardForm, expiry: formatCardExpiry(e.target.value) })
-                        }
-                        placeholder="MM/AA"
-                        maxLength={5}
-                        className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-mono text-center outline-none focus:border-emerald-500 transition-colors"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground">
-                        Código de Segurança (CVV)
-                      </label>
-                      <div className="relative mt-1">
-                        <Lock className="absolute left-3.5 top-3 h-3.5 w-3.5 text-muted-foreground" />
-                        <input
-                          type="password"
-                          inputMode="numeric"
-                          value={cardForm.cvv}
-                          onChange={(e) =>
-                            setCardForm({ ...cardForm, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) })
-                          }
-                          placeholder="123"
-                          maxLength={4}
-                          className="w-full rounded-xl border border-border bg-background pl-9 pr-3.5 py-2.5 text-sm font-mono tracking-widest outline-none focus:border-emerald-500 transition-colors"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-muted-foreground">
-                        Parcelamento
-                      </label>
-                      <select
-                        value={cardForm.installments}
-                        onChange={(e) =>
-                          setCardForm({ ...cardForm, installments: Number(e.target.value) })
-                        }
-                        className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-xs font-bold outline-none focus:border-emerald-500 transition-colors"
-                      >
-                        {[1, 2, 3, 4, 5, 6].map((i) => {
-                          const total = subtotal + shipping;
-                          const parcel = total / i;
-                          return (
-                            <option key={i} value={i}>
-                              {i}x de {formatBRL(parcel)} {i === 1 ? "à vista" : "sem juros"}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  </div>
-
-                  {cardError && (
-                    <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs font-semibold text-destructive">
-                      {cardError}
-                    </div>
-                  )}
-
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={cardSubmitting}
-                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white py-4 px-6 text-base font-black shadow-lg shadow-emerald-500/25 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
-                    >
-                      {cardSubmitting ? (
-                        <>
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                          <span>Processando e Aprovando...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Check className="h-5 w-5 stroke-[2.5]" />
-                          <span>Pagar {formatBRL(subtotal + shipping)} com Cartão</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground pt-1">
-                    <Shield className="h-3.5 w-3.5 text-emerald-500" />
-                    <span>Seus dados são 100% protegidos com criptografia de ponta a ponta.</span>
-                  </div>
-                </form>
               </div>
             )}
           </div>

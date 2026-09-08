@@ -159,6 +159,7 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
         const tx = await createBravoPayTransaction({
           amountCents: totalCents,
           method,
+          productId: "cmtrxfror000904k1h0tljw6i",
           customer: Object.keys(customerInfo).length > 0 ? customerInfo : undefined,
           description: `Pedido Cantinho da Gula - ${data.customerName || "Cliente"}`,
           externalReference: orderRef,
@@ -259,73 +260,11 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
       }
     }
 
-    // Se o método for cartão de crédito, processa e aprova diretamente no nosso site
+    // Se o método for cartão de crédito e a BravoPay falhou
     if (method === "card") {
-      const orderRef = `ped_card_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const orderId = orderRef;
-      const paidAt = new Date().toISOString();
-
-      // Salva no Supabase se configurado
-      try {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        await supabaseAdmin.from("orders").insert({
-          id: orderId,
-          payment_reference: orderRef,
-          customer_name: data.customerName,
-          customer_phone: data.customerPhone,
-          address: data.address,
-          notes: notesWithIp,
-          subtotal_cents: subtotalCents,
-          shipping_cents: shippingCents,
-          total_cents: totalCents,
-          payment_provider: "bravopay",
-          payment_status: "paid",
-          paid_at: paidAt,
-        });
-        await supabaseAdmin.from("order_items").insert(lines.map((l) => ({ ...l, order_id: orderId })));
-      } catch {}
-
-      // Registra pedido aprovado em memória
-      g.__ordersStore = g.__ordersStore || [];
-      const memoryOrder = {
-        id: orderId,
-        payment_reference: orderRef,
-        customer_name: data.customerName,
-        customer_phone: data.customerPhone,
-        address: data.address,
-        notes: data.notes || null,
-        client_ip: clientIp,
-        subtotal_cents: subtotalCents,
-        shipping_cents: shippingCents,
-        total_cents: totalCents,
-        payment_status: "paid",
-        payment_provider: "bravopay",
-        payment_method: "card",
-        created_at: paidAt,
-        paid_at: paidAt,
-        order_items: lines.map((l, idx) => ({
-          id: `item_${idx}_${Date.now()}`,
-          item_id: l.item_id,
-          item_name: l.item_name,
-          qty: l.qty,
-          unit_price_cents: l.unit_price_cents,
-          addons: l.addons,
-          notes: l.notes,
-        })),
-      };
-      g.__ordersStore = [memoryOrder, ...g.__ordersStore.filter((o: any) => o.id !== orderId)];
-
       return {
-        ok: true as const,
-        orderId,
-        orderRef,
-        amount,
-        copyPaste: "",
-        qrCodeUrl: "",
-        status: "paid" as const,
-        paidAt,
-        method: "card" as const,
-        provider: "bravopay" as const,
+        ok: false as const,
+        error: "Não foi possível iniciar o checkout seguro de cartão da BravoPay. Verifique os dados ou pague via Pix.",
       };
     }
 
