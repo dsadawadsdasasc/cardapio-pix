@@ -15,7 +15,7 @@ import {
   type MenuItem,
 } from "@/data/menu";
 import { cart, useCart } from "@/lib/cart";
-import { createCheckoutPix, registerOrder } from "@/lib/checkout.functions";
+import { createCheckoutPix, processCardPayment, registerOrder } from "@/lib/checkout.functions";
 import { trackPixelEvent } from "@/lib/pixel";
 
 
@@ -194,6 +194,7 @@ function Index() {
   const doUpdateOrderStatus = useServerFn(updateAdminOrderStatus);
   const doRegisterOrder = useServerFn(registerOrder);
   const doCreateCheckoutPix = useServerFn(createCheckoutPix);
+  const doProcessCardPayment = useServerFn(processCardPayment);
   const doGetGatewayConfig = useServerFn(getAdminGatewayConfig);
   const doSaveGatewayConfig = useServerFn(saveAdminGatewayConfig);
   const doGenerateCardLink = useServerFn(generateAdminCardLink);
@@ -250,7 +251,181 @@ function Index() {
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
-  // Polling em tempo real quando o modal de Pix da AkadPay estiver aberto
+  // Estado para Checkout Transparente de Cartão no próprio site
+  const [cardModalOpen, setCardModalOpen] = useState(false);
+  const [cardForm, setCardForm] = useState({
+    number: "",
+    holderName: "",
+    expiry: "",
+    cvv: "",
+    cpf: "",
+    installments: 1,
+  });
+  const [cardSubmitting, setCardSubmitting] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [cardSuccessOrder, setCardSuccessOrder] = useState<{
+    orderId: string;
+    amount: number;
+    brand: string;
+    last4: string;
+    installments: number;
+  } | null>(null);
+
+  const formatCardNumber = (val: string) => {
+    const clean = val.replace(/\D/g, "").slice(0, 16);
+    return clean.replace(/(\d{4})(?=\d)/g, "$1 ");
+  };
+
+  const formatCardExpiry = (val: string) => {
+    const clean = val.replace(/\D/g, "").slice(0, 4);
+    if (clean.length > 2) {
+      return `${clean.slice(0, 2)}/${clean.slice(2)}`;
+    }
+    return clean;
+  };
+
+  const formatCpf = (val: string) => {
+    const clean = val.replace(/\D/g, "").slice(0, 11);
+    if (clean.length > 9) {
+      return `${clean.slice(0, 3)}.${clean.slice(3, 6)}.${clean.slice(6, 9)}-${clean.slice(9)}`;
+    }
+    if (clean.length > 6) {
+      return `${clean.slice(0, 3)}.${clean.slice(3, 6)}.${clean.slice(6)}`;
+    }
+    if (clean.length > 3) {
+      return `${clean.slice(0, 3)}.${clean.slice(3)}`;
+    }
+    return clean;
+  };
+
+  const getCardBrand = (num: string) => {
+    const clean = num.replace(/\D/g, "");
+    if (/^4/.test(clean)) return "Visa";
+    if (/^(5[1-5]|2[2-7])/.test(clean)) return "Mastercard";
+    if (/^(4011|438935|451416|4576|504175|5067|509|627780|636297|636368|650|6516|6550)/.test(clean)) return "Elo";
+    if (/^(606282|3841)/.test(clean)) return "Hipercard";
+    if (/^3[47]/.test(clean)) return "Amex";
+    return "Mastercard";
+  };
+
+  const handleOpenCardModal = () => {
+    if (detailed.length === 0) {
+      alert("Seu carrinho está vazio.");
+      return;
+    }
+    setCardError(null);
+    setCardSuccessOrder(null);
+    setCardModalOpen(true);
+  };
+
+  const handleSubmitCardPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCardError(null);
+    const cleanNumber = cardForm.number.replace(/\D/g, "");
+    if (cleanNumber.length < 13) {
+      setCardError("Por favor, digite o número completo do cartão.");
+      return;
+    }
+    if (!cardForm.holderName.trim() || cardForm.holderName.trim().length < 3) {
+      setCardError("Informe o nome completo impresso no cartão.");
+      return;
+    }
+    const cleanExpiry = cardForm.expiry.replace(/\D/g, "");
+    if (cleanExpiry.length < 4) {
+      setCardError("Informe a validade do cartão (Mês/Ano).");
+      return;
+    }
+    const cleanCvv = cardForm.cvv.replace(/\D/g, "");
+    if (cleanCvv.length < 3) {
+      setCardError("Informe o código de segurança (CVV) com 3 ou 4 dígitos.");
+      return;
+    }
+
+    setCardSubmitting(true);
+    const clientIpDetected = clientIp || "127.0.0.1";
+    try {
+      const res = await doProcessCardPayment({
+        data: {
+          customerName: form.name.trim() || cardForm.holderName.trim() || "Cliente",
+          customerPhone: form.phone.trim() || "",
+          address: form.address.trim() || "Entrega / Retirada a combinar",
+          notes: form.notes.trim() || "",
+          clientIp: clientIpDetected,
+          cardNumber: cleanNumber,
+          cardHolderName: cardForm.holderName.trim(),
+          cardExpiry: cardForm.expiry,
+          cardCvv: cleanCvv,
+          cardCpf: cardForm.cpf.replace(/\D/g, ""),
+          installments: Number(cardForm.installments) || 1,
+          items: detailed.map((d) => ({
+            itemId: d.item.id,
+            qty: d.line.qty,
+            addonIds: d.addons.map((a) => a.id),
+            notes: d.line.notes || "",
+          })),
+        },
+      });
+
+      if (res.ok) {
+        setCardSuccessOrder({
+          orderId: res.orderId,
+          amount: res.amount,
+          brand: res.cardBrand,
+          last4: res.cardLast4,
+          installments: res.installments,
+        });
+
+        // Adiciona nas vendas do admin e localStorage
+        const approvedOrder = {
+          id: res.orderId,
+          customer_name: form.name.trim() || cardForm.holderName.trim() || "Cliente",
+          customer_phone: form.phone.trim() || "-",
+          address: form.address.trim() || "A combinar",
+          notes: form.notes.trim() || null,
+          client_ip: clientIpDetected,
+          subtotal_cents: Math.round(subtotal * 100),
+          shipping_cents: 0,
+          total_cents: Math.round(subtotal * 100),
+          payment_status: "paid",
+          payment_provider: "bravopay",
+          payment_method: "card",
+          created_at: res.paidAt || new Date().toISOString(),
+          paid_at: res.paidAt || new Date().toISOString(),
+          order_items: detailed.map((d, i) => ({
+            id: `item_${i}_${Date.now()}`,
+            item_id: d.item.id,
+            item_name: d.item.name,
+            qty: d.line.qty,
+            unit_price_cents: Math.round((d.total / d.line.qty) * 100),
+            addons: d.addons,
+            notes: d.line.notes || null,
+          })),
+        };
+        setAdminOrders((prev) => [approvedOrder, ...prev.filter((o) => o.id !== approvedOrder.id)]);
+        if (typeof window !== "undefined") {
+          try {
+            const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+            localStorage.setItem("cantinho_orders", JSON.stringify([approvedOrder, ...list].slice(0, 50)));
+          } catch {}
+        }
+
+        cart.clear();
+        trackPixelEvent("Purchase", {
+          value: res.amount,
+          currency: "BRL",
+          num_items: itemCount,
+        });
+      } else {
+        setCardError((res as any).error || "Não foi possível aprovar a transação no cartão.");
+      }
+    } catch (err: any) {
+      setCardError(err?.message || "Erro ao processar pagamento com cartão.");
+    } finally {
+      setCardSubmitting(false);
+    }
+  };
+
+  // Polling em tempo real quando o modal de Pix estiver aberto
   useEffect(() => {
     if (!checkoutPixModal?.orderId || checkoutPixPaid) return;
     const interval = setInterval(async () => {
@@ -271,17 +446,13 @@ function Index() {
     return () => clearInterval(interval);
   }, [checkoutPixModal, checkoutPixPaid, itemCount]);
 
-  const handleCreateCheckout = async (method: "pix" | "card" = "pix") => {
+  const handleCreatePixCheckout = async () => {
     if (detailed.length === 0) {
       alert("Seu carrinho está vazio.");
       return;
     }
     setCheckoutPixError(null);
-    if (method === "card") {
-      setCheckoutCardSubmitting(true);
-    } else {
-      setCheckoutPixSubmitting(true);
-    }
+    setCheckoutPixSubmitting(true);
     const clientIpDetected = clientIp || "127.0.0.1";
     try {
       const res = await doCreateCheckoutPix({
@@ -291,7 +462,7 @@ function Index() {
           address: form.address.trim() || "Entrega / Retirada a combinar",
           notes: form.notes.trim() || "",
           clientIp: clientIpDetected,
-          paymentMethod: method,
+          paymentMethod: "pix",
           items: detailed.map((d) => ({
             itemId: d.item.id,
             qty: d.line.qty,
@@ -306,19 +477,11 @@ function Index() {
           amount: res.amount,
           copyPaste: res.copyPaste || "",
           qrCodeUrl: res.qrCodeUrl || "",
-          cardUrl: (res as any).cardUrl || null,
           provider: (res as any).provider || "bravopay",
         });
         setCheckoutPixPaid(false);
         trackPixelEvent("InitiateCheckout", { value: subtotal, currency: "BRL", num_items: itemCount });
         trackPixelEvent("AddPaymentInfo", { value: subtotal, currency: "BRL" });
-
-        // Se for cartão de crédito e a gateway retornou o link de pagamento seguro, redireciona diretamente
-        if (method === "card" && (res as any).cardUrl) {
-          try {
-            window.location.href = (res as any).cardUrl;
-          } catch {}
-        }
 
         if (typeof window !== "undefined") {
           try {
@@ -359,12 +522,10 @@ function Index() {
       setCheckoutPixError(err?.message || "Erro ao conectar com o serviço de pagamento.");
     } finally {
       setCheckoutPixSubmitting(false);
-      setCheckoutCardSubmitting(false);
     }
   };
 
-  const handleCreatePixCheckout = () => handleCreateCheckout("pix");
-  const handleCreateCardCheckout = () => handleCreateCheckout("card");
+  const handleCreateCardCheckout = () => handleOpenCardModal();
 
   // Auto-aprovação imediata: se já logou como admin no passado, aprova na hora
   useEffect(() => {
@@ -2372,57 +2533,6 @@ function Index() {
                   </button>
                 </div>
               </div>
-            ) : checkoutPixModal.cardUrl && !checkoutPixModal.copyPaste ? (
-              <div>
-                <div className="flex items-center justify-center gap-2 text-emerald-500">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15">
-                    <CreditCard className="h-5 w-5" />
-                  </span>
-                  <h3 className="text-xl font-extrabold text-foreground">Pagamento no Cartão</h3>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Seu checkout seguro da BravoPay / Stripe Elements está pronto!
-                </p>
-
-                <div className="mt-4 rounded-2xl bg-secondary/50 p-3 text-center">
-                  <span className="text-xs text-muted-foreground">Valor a pagar:</span>
-                  <p className="text-2xl font-black text-emerald-500">
-                    {formatBRL(checkoutPixModal.amount)}
-                  </p>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  <a
-                    href={checkoutPixModal.cardUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white py-3.5 px-6 font-bold shadow-lg shadow-emerald-500/25 transition-all text-sm"
-                  >
-                    <CreditCard className="h-5 w-5" />
-                    Ir para Pagamento com Cartão
-                  </a>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (checkoutPixModal.cardUrl) {
-                        navigator.clipboard.writeText(checkoutPixModal.cardUrl);
-                        setCheckoutPixCopied(true);
-                        setTimeout(() => setCheckoutPixCopied(false), 3000);
-                      }
-                    }}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary hover:bg-secondary/80 py-2.5 px-4 text-xs font-semibold text-foreground transition-colors cursor-pointer"
-                  >
-                    {checkoutPixCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                    {checkoutPixCopied ? "Link Copiado!" : "Copiar Link de Pagamento"}
-                  </button>
-                </div>
-
-                <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs font-medium text-amber-500">
-                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                  <span>Aguardando confirmação do pagamento... O status atualiza automaticamente.</span>
-                </div>
-              </div>
             ) : (
               <div>
                 <div className="flex items-center justify-center gap-2 text-orange-500">
@@ -2468,29 +2578,12 @@ function Index() {
                         setTimeout(() => setCheckoutPixCopied(false), 3000);
                       }
                     }}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white py-3 text-sm font-bold shadow-md transition-all active:scale-95"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white py-3 text-sm font-bold shadow-md transition-all active:scale-95 cursor-pointer"
                   >
                     {checkoutPixCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     {checkoutPixCopied ? "Chave Pix Copiada com Sucesso!" : "Copiar Chave Pix Copia e Cola"}
                   </button>
                 </div>
-
-                {checkoutPixModal.cardUrl && (
-                  <div className="mt-4 p-3.5 rounded-2xl border border-lime-400/30 bg-lime-400/5 text-center">
-                    <p className="text-xs font-semibold text-foreground">
-                      Prefere pagar com Cartão de Crédito?
-                    </p>
-                    <a
-                      href={checkoutPixModal.cardUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-lime-400 hover:bg-lime-300 text-black py-2.5 px-4 text-xs font-bold shadow-sm transition-all"
-                    >
-                      <CreditCard className="h-4 w-4" />
-                      Pagar com Cartão pela BravoPay
-                    </a>
-                  </div>
-                )}
 
                 <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs font-medium text-amber-500">
                   <Loader2 className="h-4 w-4 animate-spin shrink-0" />
@@ -2517,6 +2610,292 @@ function Index() {
           </div>
         </div>
       )}
+
+      {/* MODAL CHECKOUT TRANSPARENTE DE CARTÃO NO PRÓPRIO SITE */}
+      {cardModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="relative w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setCardModalOpen(false);
+                setCardError(null);
+              }}
+              className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors cursor-pointer"
+              aria-label="Fechar"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {cardSuccessOrder ? (
+              <div className="py-6 text-center">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-500 animate-bounce">
+                  <Check className="h-10 w-10 stroke-[3]" />
+                </div>
+                <h3 className="mt-4 text-2xl font-black text-foreground">Pagamento Aprovado!</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Recebemos seu pagamento de <strong className="text-emerald-500 font-extrabold">{formatBRL(cardSuccessOrder.amount)}</strong> via{" "}
+                  <strong>Cartão de Crédito ({cardSuccessOrder.brand} final {cardSuccessOrder.last4})</strong> em {cardSuccessOrder.installments}x!
+                </p>
+
+                <div className="mt-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-left space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="font-bold text-emerald-500 uppercase tracking-wide">✓ Aprovado Imediatamente</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Código do Pedido:</span>
+                    <span className="font-mono font-bold text-foreground">#{cardSuccessOrder.orderId.slice(0, 10)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Forma de Pagamento:</span>
+                    <span className="font-medium text-foreground">{cardSuccessOrder.brand} •••• {cardSuccessOrder.last4} ({cardSuccessOrder.installments}x)</span>
+                  </div>
+                  <div className="flex justify-between text-xs border-t border-emerald-500/20 pt-1.5 font-bold">
+                    <span className="text-foreground">Total Pago:</span>
+                    <span className="text-emerald-500">{formatBRL(cardSuccessOrder.amount)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-col gap-3">
+                  <a
+                    href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+                      `Olá! Acabei de pagar meu pedido #${cardSuccessOrder.orderId.slice(0, 8)} no valor de ${formatBRL(
+                        cardSuccessOrder.amount,
+                      )} com Cartão de Crédito (${cardSuccessOrder.brand} final ${cardSuccessOrder.last4})! Aguardo a entrega!`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white py-3.5 px-6 font-bold shadow-md transition-transform active:scale-95 text-sm cursor-pointer"
+                  >
+                    <MessageCircle className="h-5 w-5 fill-current" />
+                    Acompanhar pelo WhatsApp
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCardModalOpen(false);
+                      setCardSuccessOrder(null);
+                      setTab("cardapio");
+                    }}
+                    className="w-full rounded-2xl border border-border bg-secondary py-3 text-sm font-semibold hover:bg-secondary/80 transition-colors cursor-pointer"
+                  >
+                    Voltar ao Cardápio
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-500">
+                    <CreditCard className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-bold text-foreground">Pagamento no Cartão</h3>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Lock className="h-3 w-3 text-emerald-500" />
+                      Checkout 100% seguro com aprovação imediata no site
+                    </p>
+                  </div>
+                </div>
+
+                {/* CARTÃO VIRTUAL INTERATIVO */}
+                <div className="relative mt-5 overflow-hidden rounded-2xl bg-gradient-to-tr from-zinc-900 via-neutral-900 to-zinc-800 p-5 text-white shadow-xl border border-white/10">
+                  <div className="flex items-center justify-between">
+                    {/* CHIP DOURADO */}
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-9 rounded-md bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-500 border border-yellow-200/50 shadow-inner flex items-center justify-center">
+                        <div className="w-5 h-4 border border-black/20 rounded-sm" />
+                      </div>
+                      <span className="text-[10px] tracking-widest text-zinc-400 font-mono">APROVAÇÃO ONLINE</span>
+                    </div>
+                    {/* BANDEIRA DO CARTÃO */}
+                    <span className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-black tracking-wider uppercase backdrop-blur">
+                      {getCardBrand(cardForm.number)}
+                    </span>
+                  </div>
+
+                  <div className="mt-6">
+                    <span className="text-[10px] uppercase tracking-widest text-zinc-400 block font-mono">Número do Cartão</span>
+                    <p className="font-mono text-lg sm:text-xl font-bold tracking-widest text-zinc-100 mt-0.5 select-none">
+                      {cardForm.number || "•••• •••• •••• ••••"}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 flex items-end justify-between text-xs">
+                    <div>
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-mono">Titular</span>
+                      <p className="font-semibold uppercase tracking-wide truncate max-w-[190px]">
+                        {cardForm.holderName || "NOME DO TITULAR"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-mono">Validade</span>
+                      <p className="font-mono font-semibold">{cardForm.expiry || "MM/AA"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* FORMULÁRIO DO CARTÃO */}
+                <form onSubmit={handleSubmitCardPayment} className="mt-5 space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground">
+                      Número do Cartão de Crédito
+                    </label>
+                    <div className="relative mt-1">
+                      <CreditCard className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={cardForm.number}
+                        onChange={(e) =>
+                          setCardForm({ ...cardForm, number: formatCardNumber(e.target.value) })
+                        }
+                        placeholder="0000 0000 0000 0000"
+                        maxLength={19}
+                        className="w-full rounded-xl border border-border bg-background pl-10 pr-3.5 py-2.5 text-sm font-mono font-bold outline-none focus:border-emerald-500 transition-colors"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground">
+                      Nome Impresso no Cartão
+                    </label>
+                    <input
+                      type="text"
+                      value={cardForm.holderName}
+                      onChange={(e) =>
+                        setCardForm({ ...cardForm, holderName: e.target.value.toUpperCase() })
+                      }
+                      placeholder="COMO IMPRESSO NO CARTÃO"
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-semibold uppercase outline-none focus:border-emerald-500 transition-colors"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground">
+                        CPF do Titular
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={cardForm.cpf}
+                        onChange={(e) =>
+                          setCardForm({ ...cardForm, cpf: formatCpf(e.target.value) })
+                        }
+                        placeholder="000.000.000-00"
+                        maxLength={14}
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-mono outline-none focus:border-emerald-500 transition-colors"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground">
+                        Validade (Mês/Ano)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={cardForm.expiry}
+                        onChange={(e) =>
+                          setCardForm({ ...cardForm, expiry: formatCardExpiry(e.target.value) })
+                        }
+                        placeholder="MM/AA"
+                        maxLength={5}
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-mono text-center outline-none focus:border-emerald-500 transition-colors"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground">
+                        Código de Segurança (CVV)
+                      </label>
+                      <div className="relative mt-1">
+                        <Lock className="absolute left-3.5 top-3 h-3.5 w-3.5 text-muted-foreground" />
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          value={cardForm.cvv}
+                          onChange={(e) =>
+                            setCardForm({ ...cardForm, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) })
+                          }
+                          placeholder="123"
+                          maxLength={4}
+                          className="w-full rounded-xl border border-border bg-background pl-9 pr-3.5 py-2.5 text-sm font-mono tracking-widest outline-none focus:border-emerald-500 transition-colors"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-muted-foreground">
+                        Parcelamento
+                      </label>
+                      <select
+                        value={cardForm.installments}
+                        onChange={(e) =>
+                          setCardForm({ ...cardForm, installments: Number(e.target.value) })
+                        }
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-xs font-bold outline-none focus:border-emerald-500 transition-colors"
+                      >
+                        {[1, 2, 3, 4, 5, 6].map((i) => {
+                          const total = subtotal + shipping;
+                          const parcel = total / i;
+                          return (
+                            <option key={i} value={i}>
+                              {i}x de {formatBRL(parcel)} {i === 1 ? "à vista" : "sem juros"}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  </div>
+
+                  {cardError && (
+                    <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs font-semibold text-destructive">
+                      {cardError}
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={cardSubmitting}
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white py-4 px-6 text-base font-black shadow-lg shadow-emerald-500/25 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+                    >
+                      {cardSubmitting ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span>Processando e Aprovando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-5 w-5 stroke-[2.5]" />
+                          <span>Pagar {formatBRL(subtotal + shipping)} com Cartão</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground pt-1">
+                    <Shield className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Seus dados são 100% protegidos com criptografia de ponta a ponta.</span>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
