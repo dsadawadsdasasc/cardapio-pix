@@ -256,13 +256,43 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
         };
       } catch (bravoErr: any) {
         console.error("[BravoPay] Falha ao criar transação:", bravoErr);
-        if (method === "card") {
+      }
+    }
+
+    // Se o método for cartão de crédito e a BravoPay não estava configurada ou falhou, tenta Appmax
+    if (method === "card") {
+      try {
+        const { createAppmaxPaymentLink } = await import("./appmax");
+        const orderRef = `ped_card_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const appmaxRes = await createAppmaxPaymentLink({
+          amount,
+          description: `Pedido Cantinho da Gula - ${data.customerName || "Cliente"}`,
+          referenceId: orderRef,
+          customerName: data.customerName,
+          customerPhone: phoneClean,
+        });
+
+        if (appmaxRes.ok && appmaxRes.paymentUrl) {
           return {
-            ok: false as const,
-            error: `Erro ao gerar cobrança de cartão na BravoPay: ${bravoErr?.message || bravoErr}`,
+            ok: true as const,
+            orderId: orderRef,
+            orderRef,
+            amount,
+            copyPaste: "",
+            qrCodeUrl: "",
+            cardUrl: appmaxRes.paymentUrl,
+            method: "card" as const,
+            provider: "appmax" as const,
           };
         }
+      } catch (appmaxErr: any) {
+        console.error("[Appmax] Falha ao gerar link de cartão:", appmaxErr);
       }
+
+      return {
+        ok: false as const,
+        error: "Serviço de cartão temporariamente indisponível. Por favor, utilize o pagamento via Pix ou fale conosco no WhatsApp.",
+      };
     }
 
     // 2. Fallback para AkadPay (Pix)
@@ -279,10 +309,10 @@ export const createCheckoutPix = createServerFn({ method: "POST" })
           token: akadToken,
           secret: akadSecret,
           amount,
-          debtor_name: data.customerName || "Cliente Cantinho",
+          debtor_name: (data.customerName && data.customerName.trim() && data.customerName.trim() !== "Cliente") ? data.customerName.trim() : "Cliente Cantinho",
           email: "cliente@cantinhodagula.online",
           debtor_document_number: "00000000000",
-          phone: phoneClean,
+          phone: phoneClean && phoneClean.length >= 10 ? phoneClean : "47920036595",
           method_pay: "pix",
           postback: "https://cantinhodagula.online/api/public/akadpay",
         }),

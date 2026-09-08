@@ -9,6 +9,13 @@ import {
   setBravoPayApiKey,
   setBravoPayWebhookSecret,
 } from "./bravopay";
+import {
+  createAppmaxPaymentLink,
+  getAppmaxApiToken,
+  getAppmaxBaseCheckoutUrl,
+  setAppmaxApiToken,
+  setAppmaxBaseCheckoutUrl,
+} from "./appmax";
 
 // Hashes SHA-256 das credenciais autorizadas (nunca expostas em texto puro)
 const AUTH_USER_HASH = "ca6ea21199201b73fbbf48c3544a8237a3f30b0604018976895d186aace793bb";
@@ -527,6 +534,106 @@ export const updateAdminOrderStatus = createServerFn({ method: "POST" })
     return { ok: true as const, orderId: data.orderId, paymentStatus: data.paymentStatus, paidAt };
   });
 
+const generateAdminCardLinkSchema = z.object({
+  token: z.string().min(1),
+  amount: z.number().min(0.01).max(100000),
+  customerName: z.string().optional(),
+  customerPhone: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export const generateAdminCardLink = createServerFn({ method: "POST" })
+  .validator((data: unknown) => generateAdminCardLinkSchema.parse(data))
+  .handler(async ({ data }) => {
+    const authorized = await verifySessionToken(data.token);
+    if (!authorized) {
+      return { ok: false as const, error: "Não autorizado." };
+    }
+
+    const amount = Number(data.amount.toFixed(2));
+    if (amount < 1) {
+      return { ok: false as const, error: "O valor mínimo para cobrança no cartão é de R$ 1,00." };
+    }
+
+    const orderRef = `adm_appmax_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const desc = data.description?.trim() || `Cobrança Cartão Appmax - R$ ${amount.toFixed(2)}`;
+
+    const res = await createAppmaxPaymentLink({
+      amount,
+      description: desc,
+      referenceId: orderRef,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+    });
+
+    const g = globalThis as any;
+    const clientIp = g.__lastClientIp || "127.0.0.1";
+    const notesWithIp = `${desc} [IP: ${clientIp}]`;
+
+    const createdOrder = {
+      id: orderRef,
+      payment_reference: orderRef,
+      customer_name: data.customerName || "Cobrança Cartão (Appmax)",
+      customer_phone: data.customerPhone || "-",
+      address: "Link gerado no painel ADM (Appmax)",
+      notes: notesWithIp,
+      client_ip: clientIp,
+      subtotal_cents: Math.round(amount * 100),
+      shipping_cents: 0,
+      total_cents: Math.round(amount * 100),
+      payment_status: "unpaid",
+      payment_provider: "appmax",
+      created_at: new Date().toISOString(),
+      paid_at: null,
+      pix_copy_paste: "",
+      pix_qr_base64: "",
+      card_url: res.paymentUrl,
+      order_items: [
+        {
+          id: `item_${Date.now()}`,
+          item_id: "card_appmax",
+          item_name: desc,
+          qty: 1,
+          unit_price_cents: Math.round(amount * 100),
+          addons: [],
+          notes: null,
+        },
+      ],
+    };
+
+    g.__ordersStore = g.__ordersStore || [];
+    g.__ordersStore = [createdOrder, ...g.__ordersStore.filter((o: any) => o.id !== orderRef)];
+
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.from("orders").insert({
+        id: orderRef,
+        payment_reference: orderRef,
+        customer_name: createdOrder.customer_name,
+        customer_phone: createdOrder.customer_phone,
+        address: createdOrder.address,
+        notes: createdOrder.notes,
+        subtotal_cents: createdOrder.subtotal_cents,
+        shipping_cents: createdOrder.shipping_cents,
+        total_cents: createdOrder.total_cents,
+        payment_status: createdOrder.payment_status,
+        payment_provider: createdOrder.payment_provider,
+        card_url: res.paymentUrl,
+      });
+    } catch {
+      /* fallback */
+    }
+
+    return {
+      ok: true as const,
+      orderId: orderRef,
+      amount,
+      description: desc,
+      paymentUrl: res.paymentUrl,
+      provider: "appmax" as const,
+    };
+  });
+
 export const getAdminGatewayConfig = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ token: z.string().min(1) }).parse(data))
   .handler(async ({ data }) => {
@@ -535,6 +642,8 @@ export const getAdminGatewayConfig = createServerFn({ method: "POST" })
 
     const bravoKey = getBravoPayApiKey();
     const bravoSecret = getBravoPayWebhookSecret();
+    const appmaxToken = getAppmaxApiToken();
+    const appmaxBaseUrl = getAppmaxBaseCheckoutUrl();
     return {
       ok: true as const,
       hasBravoKey: !!bravoKey,
@@ -542,6 +651,10 @@ export const getAdminGatewayConfig = createServerFn({ method: "POST" })
       hasBravoSecret: !!bravoSecret,
       activeGateway: bravoKey ? "bravopay" : "akadpay",
       webhookUrl: "https://cantinhodagula.online/api/public/bravopay",
+      hasAppmaxToken: !!appmaxToken,
+      appmaxTokenPreview: appmaxToken ? `${appmaxToken.slice(0, 6)}...${appmaxToken.slice(-4)}` : null,
+      appmaxCheckoutUrl: appmaxBaseUrl || "",
+      appmaxWebhookUrl: "https://cantinhodagula.online/api/public/appmax",
     };
   });
 
@@ -553,6 +666,8 @@ export const saveAdminGatewayConfig = createServerFn({ method: "POST" })
           token: z.string().min(1),
           bravoKey: z.string().trim().optional(),
           bravoWebhookSecret: z.string().trim().optional(),
+          appmaxToken: z.string().trim().optional(),
+          appmaxCheckoutUrl: z.string().trim().optional(),
         })
         .parse(data),
   )
@@ -565,6 +680,12 @@ export const saveAdminGatewayConfig = createServerFn({ method: "POST" })
     }
     if (data.bravoWebhookSecret !== undefined) {
       setBravoPayWebhookSecret(data.bravoWebhookSecret);
+    }
+    if (data.appmaxToken !== undefined) {
+      setAppmaxApiToken(data.appmaxToken);
+    }
+    if (data.appmaxCheckoutUrl !== undefined) {
+      setAppmaxBaseCheckoutUrl(data.appmaxCheckoutUrl);
     }
 
     let accountInfo = null;
@@ -581,7 +702,7 @@ export const saveAdminGatewayConfig = createServerFn({ method: "POST" })
 
     return {
       ok: true as const,
-      message: "Configurações da BravoPay atualizadas com sucesso!",
+      message: "Configurações de gateway (BravoPay / Appmax) atualizadas com sucesso!",
       accountInfo,
     };
   });

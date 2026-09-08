@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Clock, Copy, CreditCard, DollarSign, ExternalLink, Globe, Loader2, Lock, LogOut, MessageCircle, QrCode, RefreshCw, Shield, ShoppingBag, Trash2, Truck, X } from "lucide-react";
-import { deleteAdminOrder, generateAdminPix, getAdminGatewayConfig, getAdminOrders, loginAdmin, saveAdminGatewayConfig, updateAdminOrderStatus } from "@/lib/admin.functions";
+import { deleteAdminOrder, generateAdminCardLink, generateAdminPix, getAdminGatewayConfig, getAdminOrders, loginAdmin, saveAdminGatewayConfig, updateAdminOrderStatus } from "@/lib/admin.functions";
 
 import heroImg from "@/assets/hero.jpg";
 import logoImg from "@/assets/logo.png";
@@ -196,6 +196,7 @@ function Index() {
   const doCreateCheckoutPix = useServerFn(createCheckoutPix);
   const doGetGatewayConfig = useServerFn(getAdminGatewayConfig);
   const doSaveGatewayConfig = useServerFn(saveAdminGatewayConfig);
+  const doGenerateCardLink = useServerFn(generateAdminCardLink);
 
   const [gatewayConfig, setGatewayConfig] = useState<{
     hasBravoKey: boolean;
@@ -203,13 +204,34 @@ function Index() {
     hasBravoSecret: boolean;
     activeGateway: string;
     webhookUrl: string;
+    hasAppmaxToken?: boolean;
+    appmaxTokenPreview?: string | null;
+    appmaxCheckoutUrl?: string;
+    appmaxWebhookUrl?: string;
   } | null>(null);
   const [bravoKeyInput, setBravoKeyInput] = useState("");
   const [bravoSecretInput, setBravoSecretInput] = useState("");
+  const [appmaxTokenInput, setAppmaxTokenInput] = useState("");
+  const [appmaxUrlInput, setAppmaxUrlInput] = useState("");
   const [gatewaySaving, setGatewaySaving] = useState(false);
   const [gatewaySuccessMsg, setGatewaySuccessMsg] = useState<string | null>(null);
   const [gatewayErrorMsg, setGatewayErrorMsg] = useState<string | null>(null);
   const [webhookCopied, setWebhookCopied] = useState(false);
+  const [appmaxWebhookCopied, setAppmaxWebhookCopied] = useState(false);
+
+  const [genCardAmount, setGenCardAmount] = useState("");
+  const [genCardDesc, setGenCardDesc] = useState("");
+  const [genCardCustomerName, setGenCardCustomerName] = useState("");
+  const [genCardCustomerPhone, setGenCardCustomerPhone] = useState("");
+  const [genCardSubmitting, setGenCardSubmitting] = useState(false);
+  const [genCardResult, setGenCardResult] = useState<{
+    orderId: string;
+    amount: number;
+    description: string;
+    paymentUrl: string;
+  } | null>(null);
+  const [genCardError, setGenCardError] = useState<string | null>(null);
+  const [genCardCopied, setGenCardCopied] = useState(false);
 
   const [checkoutPixModal, setCheckoutPixModal] = useState<{
     orderId: string;
@@ -1471,13 +1493,17 @@ function Index() {
                             token: adminAuth.token,
                             bravoKey: bravoKeyInput.trim() || undefined,
                             bravoWebhookSecret: bravoSecretInput.trim() || undefined,
+                            appmaxToken: appmaxTokenInput.trim() || undefined,
+                            appmaxCheckoutUrl: appmaxUrlInput.trim() || undefined,
                           },
                         });
                         if (res.ok) {
-                          setGatewaySuccessMsg(res.message || "Configurações da BravoPay salvas com sucesso!");
+                          setGatewaySuccessMsg(res.message || "Configurações de gateway salvas com sucesso!");
                           await loadGatewayConfig(adminAuth.token);
                           setBravoKeyInput("");
                           setBravoSecretInput("");
+                          setAppmaxTokenInput("");
+                          setAppmaxUrlInput("");
                         } else {
                           setGatewayErrorMsg(res.error || "Erro ao salvar configurações.");
                         }
@@ -1487,7 +1513,7 @@ function Index() {
                         setGatewaySaving(false);
                       }
                     }}
-                    className="mt-4 space-y-3"
+                    className="mt-4 space-y-4"
                   >
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block text-sm">
@@ -1505,7 +1531,7 @@ function Index() {
 
                       <label className="block text-sm">
                         <span className="text-muted-foreground font-medium text-xs">
-                          Webhook Secret (whsec_...) - Opcional
+                          BravoPay Webhook Secret (whsec_...) - Opcional
                         </span>
                         <input
                           type="password"
@@ -1515,6 +1541,62 @@ function Index() {
                           className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm font-mono outline-none focus:border-lime-400"
                         />
                       </label>
+                    </div>
+
+                    {/* SEÇÃO APPMAX CONFIG */}
+                    <div className="border-t border-border/60 pt-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="h-2 w-2 rounded-full bg-blue-500"></span>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                          Integração Appmax (Cartão de Crédito)
+                        </h4>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="block text-sm">
+                          <span className="text-muted-foreground font-medium text-xs">
+                            Appmax API Token / Chave de Acesso
+                          </span>
+                          <input
+                            type="password"
+                            value={appmaxTokenInput}
+                            onChange={(e) => setAppmaxTokenInput(e.target.value)}
+                            placeholder={gatewayConfig?.appmaxTokenPreview || "Token da API Appmax"}
+                            className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm font-mono outline-none focus:border-blue-500"
+                          />
+                        </label>
+
+                        <label className="block text-sm">
+                          <span className="text-muted-foreground font-medium text-xs">
+                            Link Base de Checkout Appmax (Opcional)
+                          </span>
+                          <input
+                            type="text"
+                            value={appmaxUrlInput}
+                            onChange={(e) => setAppmaxUrlInput(e.target.value)}
+                            placeholder={gatewayConfig?.appmaxCheckoutUrl || "https://checkout.appmax.com.br/..."}
+                            className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm outline-none focus:border-blue-500"
+                          />
+                        </label>
+                      </div>
+
+                      {/* URL Webhook Appmax */}
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-secondary/30 p-2.5">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Webhook Appmax: <code className="font-mono text-[11px] text-foreground">https://cantinhodagula.online/api/public/appmax</code>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await navigator.clipboard.writeText("https://cantinhodagula.online/api/public/appmax");
+                            setAppmaxWebhookCopied(true);
+                            setTimeout(() => setAppmaxWebhookCopied(false), 3000);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg bg-background px-2.5 py-1 text-xs font-bold text-foreground border border-border hover:bg-secondary transition-colors cursor-pointer"
+                        >
+                          {appmaxWebhookCopied ? <Check className="h-3 w-3 text-blue-500" /> : <Copy className="h-3 w-3" />}
+                          {appmaxWebhookCopied ? "Copiado!" : "Copiar Webhook"}
+                        </button>
+                      </div>
                     </div>
 
                     {gatewaySuccessMsg && (
@@ -1531,11 +1613,11 @@ function Index() {
                     <div className="flex justify-end">
                       <button
                         type="submit"
-                        disabled={gatewaySaving || (!bravoKeyInput && !bravoSecretInput)}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-lime-400 px-5 py-2.5 text-xs font-bold text-black transition-opacity hover:bg-lime-300 disabled:opacity-50 cursor-pointer"
+                        disabled={gatewaySaving || (!bravoKeyInput && !bravoSecretInput && !appmaxTokenInput && !appmaxUrlInput)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 cursor-pointer"
                       >
                         {gatewaySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-                        Salvar e Conectar BravoPay
+                        Salvar Configurações de Gateway
                       </button>
                     </div>
                   </form>
@@ -1724,6 +1806,259 @@ function Index() {
                   )}
                 </div>
 
+                {/* GERADOR DE LINKS DE CARTÃO (APPMAX) */}
+                <div className="mt-8 rounded-2xl border border-blue-500/30 bg-card p-6 shadow-md">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/15 text-blue-500">
+                        <CreditCard className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold text-foreground">Gerar Link de Cartão (Appmax)</h3>
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${
+                              gatewayConfig?.hasAppmaxToken || gatewayConfig?.appmaxCheckoutUrl
+                                ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                                : "bg-zinc-500/15 text-zinc-400 border-zinc-500/30"
+                            }`}
+                          >
+                            {gatewayConfig?.hasAppmaxToken
+                              ? "✓ Token Ativo"
+                              : gatewayConfig?.appmaxCheckoutUrl
+                              ? "✓ Link Base Configurado"
+                              : "Pronto p/ Gerar"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Gere links de pagamento no cartão de crédito via Appmax para enviar ao cliente.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setGenCardError(null);
+                      setGenCardResult(null);
+                      const num = parseFloat(genCardAmount.replace(",", "."));
+                      if (isNaN(num) || num < 1) {
+                        setGenCardError("Informe um valor válido de no mínimo R$ 1,00.");
+                        return;
+                      }
+                      setGenCardSubmitting(true);
+                      try {
+                        const res = await doGenerateCardLink({
+                          data: {
+                            token: adminAuth.token,
+                            amount: num,
+                            description: genCardDesc.trim() || undefined,
+                            customerName: genCardCustomerName.trim() || undefined,
+                            customerPhone: genCardCustomerPhone.trim() || undefined,
+                          },
+                        });
+                        if (res.ok) {
+                          setGenCardResult(res);
+                          const generatedOrder = {
+                            id: res.orderId,
+                            customer_name: genCardCustomerName.trim() || "Cobrança Cartão (Appmax)",
+                            customer_phone: genCardCustomerPhone.trim() || "-",
+                            address: "Link gerado no painel ADM (Appmax)",
+                            notes: res.description,
+                            client_ip: clientIp || "127.0.0.1",
+                            subtotal_cents: Math.round(res.amount * 100),
+                            shipping_cents: 0,
+                            total_cents: Math.round(res.amount * 100),
+                            payment_status: "unpaid",
+                            payment_provider: "appmax",
+                            created_at: new Date().toISOString(),
+                            paid_at: null,
+                            pix_copy_paste: "",
+                            pix_qr_base64: "",
+                            card_url: res.paymentUrl,
+                            order_items: [
+                              {
+                                id: `item_${Date.now()}`,
+                                item_id: "card_appmax",
+                                item_name: res.description,
+                                qty: 1,
+                                unit_price_cents: Math.round(res.amount * 100),
+                                addons: [],
+                                notes: null,
+                              },
+                            ],
+                          };
+                          setAdminOrders((prev) => [generatedOrder, ...prev.filter((o) => o.id !== generatedOrder.id)]);
+                          if (typeof window !== "undefined") {
+                            try {
+                              const list = JSON.parse(localStorage.getItem("cantinho_orders") || "[]");
+                              localStorage.setItem("cantinho_orders", JSON.stringify([generatedOrder, ...list].slice(0, 50)));
+                            } catch {}
+                          }
+                        } else {
+                          setGenCardError(res.error || "Não foi possível gerar o link da Appmax.");
+                        }
+                      } catch (err: any) {
+                        setGenCardError(err?.message || "Erro ao conectar com o serviço da Appmax.");
+                      } finally {
+                        setGenCardSubmitting(false);
+                      }
+                    }}
+                    className="mt-5 space-y-4"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm">
+                        <span className="text-muted-foreground font-medium text-xs">Valor do Cartão (R$) *</span>
+                        <div className="relative mt-1">
+                          <span className="absolute left-3.5 top-2.5 text-sm font-bold text-muted-foreground">R$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={genCardAmount}
+                            onChange={(e) => setGenCardAmount(e.target.value)}
+                            placeholder="0,00"
+                            className="w-full rounded-xl border border-border bg-background pl-10 pr-3.5 py-2.5 text-sm font-bold outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      </label>
+
+                      <label className="block text-sm">
+                        <span className="text-muted-foreground font-medium text-xs">Descrição do Pedido</span>
+                        <input
+                          type="text"
+                          value={genCardDesc}
+                          onChange={(e) => setGenCardDesc(e.target.value)}
+                          placeholder="Ex: Combo 2 Xis + Coca 2L"
+                          className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-blue-500"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Botões de atalho de valor */}
+                    <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+                      {[
+                        { label: "+R$ 20", formatted: "20,00" },
+                        { label: "+R$ 35", formatted: "35,00" },
+                        { label: "+R$ 50", formatted: "50,00" },
+                        { label: "+R$ 100", formatted: "100,00" },
+                        { label: "+R$ 120", formatted: "120,00" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.label}
+                          type="button"
+                          onClick={() => setGenCardAmount(opt.formatted)}
+                          className="rounded-lg border border-border bg-secondary/60 hover:bg-secondary px-2.5 py-1 text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm">
+                        <span className="text-muted-foreground font-medium text-xs">Nome do Cliente (opcional)</span>
+                        <input
+                          type="text"
+                          value={genCardCustomerName}
+                          onChange={(e) => setGenCardCustomerName(e.target.value)}
+                          placeholder="Ex: João da Silva"
+                          className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm outline-none focus:border-blue-500"
+                        />
+                      </label>
+
+                      <label className="block text-sm">
+                        <span className="text-muted-foreground font-medium text-xs">WhatsApp do Cliente (opcional)</span>
+                        <input
+                          type="text"
+                          value={genCardCustomerPhone}
+                          onChange={(e) => setGenCardCustomerPhone(e.target.value)}
+                          placeholder="Ex: 51999999999"
+                          className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm outline-none focus:border-blue-500"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={genCardSubmitting || !genCardAmount}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 text-xs font-bold transition-all shadow-md shadow-blue-500/25 disabled:opacity-50 cursor-pointer"
+                      >
+                        {genCardSubmitting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CreditCard className="h-4 w-4" />
+                        )}
+                        {genCardSubmitting ? "Gerando Link..." : "Gerar Link de Cartão Appmax"}
+                      </button>
+                    </div>
+
+                    {genCardError && (
+                      <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-xs font-semibold text-destructive">
+                        {genCardError}
+                      </p>
+                    )}
+                  </form>
+
+                  {genCardResult && (
+                    <div className="mt-6 rounded-xl border border-blue-500/40 bg-blue-500/10 p-5 text-center">
+                      <div className="flex items-center justify-center gap-2 text-blue-500">
+                        <Check className="h-5 w-5" />
+                        <h4 className="text-base font-bold">Link de Pagamento Appmax Criado!</h4>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Valor da cobrança: <strong className="text-foreground">{formatBRL(genCardResult.amount)}</strong>
+                      </p>
+
+                      <div className="mx-auto mt-4 max-w-md overflow-hidden rounded-xl border border-border bg-background p-2.5">
+                        <p className="font-mono text-xs break-all text-foreground select-all">
+                          {genCardResult.paymentUrl}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(genCardResult.paymentUrl);
+                            setGenCardCopied(true);
+                            setTimeout(() => setGenCardCopied(false), 3000);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          {genCardCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          {genCardCopied ? "Link Copiado!" : "Copiar Link"}
+                        </button>
+
+                        <a
+                          href={genCardResult.paymentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background hover:bg-secondary px-4 py-2 text-xs font-bold text-foreground transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Abrir Link
+                        </a>
+
+                        {genCardCustomerPhone && (
+                          <a
+                            href={`https://wa.me/${genCardCustomerPhone.replace(/\D/g, "")}?text=${encodeURIComponent(
+                              `Olá! Segue seu link seguro para pagamento com cartão de crédito no valor de ${formatBRL(genCardResult.amount)}: ${genCardResult.paymentUrl}`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white px-4 py-2 text-xs font-bold transition-colors"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5 fill-current" />
+                            Enviar no WhatsApp
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Lista de Vendas */}
                 <div className="mt-8">
                   <h3 className="text-lg font-bold">Histórico de Compras</h3>
@@ -1771,14 +2106,18 @@ function Index() {
                                 {order.payment_provider && (
                                   <span
                                     className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                                      order.payment_provider === "bravopay"
+                                      order.payment_provider === "appmax"
+                                        ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
+                                        : order.payment_provider === "bravopay"
                                         ? "bg-lime-400/15 text-lime-400 border border-lime-400/30"
                                         : order.payment_provider === "akadpay"
                                         ? "bg-purple-500/15 text-purple-400 border border-purple-500/30"
                                         : "bg-secondary text-muted-foreground border border-border"
                                     }`}
                                   >
-                                    {order.payment_provider === "bravopay"
+                                    {order.payment_provider === "appmax"
+                                      ? "Appmax (Cartão)"
+                                      : order.payment_provider === "bravopay"
                                       ? "BravoPay"
                                       : order.payment_provider === "akadpay"
                                       ? "AkadPay"
@@ -1792,11 +2131,32 @@ function Index() {
                                       ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
                                       : isWhatsApp
                                       ? "bg-sky-500/15 text-sky-400 border border-sky-500/30"
+                                      : order.card_url
+                                      ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
                                       : "bg-amber-500/15 text-amber-500 border border-amber-500/30"
                                   }`}
                                 >
-                                  {isPaid ? "✓ Pix Pago" : isWhatsApp ? "💬 WhatsApp" : "⏳ Pix Pendente"}
+                                  {isPaid
+                                    ? "✓ Pago"
+                                    : isWhatsApp
+                                    ? "💬 WhatsApp"
+                                    : order.card_url
+                                    ? "💳 Cartão Pendente"
+                                    : "⏳ Pix Pendente"}
                                 </span>
+
+                                {order.card_url && (
+                                  <a
+                                    href={order.card_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-500/15 px-2.5 py-1 text-xs font-bold text-blue-400 hover:bg-blue-500/25 transition-colors"
+                                    title="Abrir link do cartão"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    Link Cartão
+                                  </a>
+                                )}
 
                                 {!isPaid && (
                                   <button

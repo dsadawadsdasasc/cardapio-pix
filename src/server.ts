@@ -303,6 +303,74 @@ export default {
         }
       }
 
+      // Webhook automático da Appmax (Cartão de Crédito)
+      if (
+        request.method === "POST" &&
+        (url.pathname === "/api/public/appmax" || url.pathname === "/api/webhook/appmax")
+      ) {
+        try {
+          const body = (await request.json().catch(() => ({}))) as any;
+          const eventType = (body?.event || body?.type || "").toLowerCase();
+          const dataObj = body?.data || body;
+          const status = (dataObj?.status || body?.status || "").toLowerCase();
+          const orderRef =
+            dataObj?.external_reference ||
+            dataObj?.reference ||
+            dataObj?.order_id ||
+            dataObj?.id ||
+            body?.external_reference ||
+            body?.order_id ||
+            body?.id;
+
+          const isPaid =
+            eventType.includes("paid") ||
+            eventType.includes("approved") ||
+            status === "paid" ||
+            status === "approved" ||
+            status === "authorized";
+
+          if (isPaid && orderRef) {
+            const g = globalThis as any;
+            if (Array.isArray(g.__ordersStore)) {
+              g.__ordersStore = g.__ordersStore.map((o: any) => {
+                if (o.id === orderRef || o.payment_reference === orderRef) {
+                  return {
+                    ...o,
+                    payment_status: "paid",
+                    status: "confirmed",
+                    paid_at: new Date().toISOString(),
+                  };
+                }
+                return o;
+              });
+            }
+
+            try {
+              const { supabaseAdmin } = await import("./integrations/supabase/client.server");
+              await supabaseAdmin
+                .from("orders")
+                .update({
+                  payment_status: "paid",
+                  status: "confirmed",
+                  paid_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .or(`id.eq.${orderRef},payment_reference.eq.${orderRef}`);
+            } catch (err) {
+              console.warn("[Appmax Webhook] Supabase update warning:", err);
+            }
+          }
+
+          return new Response(JSON.stringify({ ok: true, status: "success" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        } catch (err: any) {
+          console.error("[Appmax Webhook] Erro:", err);
+          return new Response(JSON.stringify({ ok: false, error: err?.message }), { status: 400 });
+        }
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
